@@ -7,7 +7,13 @@ let syncInFlight = false;
 
 export async function fetchLeaderboard() {
   try {
-    const res = await fetch(CLOUD_URL, { method: 'GET' });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(CLOUD_URL, {
+      method: 'GET',
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
     if (!res.ok) return null;
     const data = await res.json();
     if (!Array.isArray(data)) return null;
@@ -47,13 +53,17 @@ export async function submitRun(run) {
   };
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
     await fetch(CLOUD_URL, {
       method: 'POST',
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
     lastSync = Date.now();
   } catch (e) {
-    /* Offline â€” ignore */
+    /* Offline — ignore */
   } finally {
     syncInFlight = false;
   }
@@ -66,20 +76,64 @@ export async function syncWallet() {
 
   syncInFlight = true;
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
     await fetch(CLOUD_URL, {
       method: 'POST',
       body: JSON.stringify({
         name: save.playerName.trim(),
         coinsHeld: Number(save.coins) || 0,
         lastUpdated: new Date().toISOString()
-      })
+      }),
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
     lastSync = Date.now();
   } catch (e) {
     /* Ignore */
   } finally {
     syncInFlight = false;
   }
+}
+
+export async function loadPlayerFromCloud(name) {
+  if (!name || name.trim().length < 1) return null;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(CLOUD_URL, {
+      method: 'GET',
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!Array.isArray(data)) return null;
+
+    const me = data.find(p =>
+      (p.name || '').trim().toLowerCase() === name.trim().toLowerCase()
+    );
+    if (!me) return null;
+    return {
+      coinsHeld: Number(me.coinsHeld) || 0,
+      bestScore: Number(me.bestScore) || 0,
+      bestTime: Number(me.bestTime) || 0,
+      bestRounds: Number(me.bestRounds) || 0
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+export async function startGameWithCloudSync() {
+  const cloud = await loadPlayerFromCloud(save.playerName);
+  if (cloud) {
+    /* Cloud wallet is authoritative — it always wins */
+    save.coins = cloud.coinsHeld;
+    persistSave();
+  }
+  const m = await import('./gameplay/rounds.js');
+  m.startRound(1);
 }
 
 export function mergeLeaderboards(localBoard, cloudBoard) {
@@ -105,7 +159,6 @@ export function mergeLeaderboards(localBoard, cloudBoard) {
         date: (p.lastUpdated || '').slice(0, 10)
       });
     } else if (existing) {
-      /* Keep local best score, but trust cloud for wallet */
       existing.coinsHeld = p.coinsHeld;
     }
   }
@@ -113,38 +166,4 @@ export function mergeLeaderboards(localBoard, cloudBoard) {
   return Array.from(merged.values())
     .sort((a, b) => (b.score || 0) - (a.score || 0))
     .slice(0, 20);
-}
-
-/* Pull the wallet and best stats for this player from the cloud.
-   Called once on name entry, before the first round starts. */
-export async function loadPlayerFromCloud(name) {
-  if (!name || name.trim().length < 1) return null;
-  try {
-    const res = await fetch(CLOUD_URL, { method: 'GET' });
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (!Array.isArray(data)) return null;
-    const me = data.find(p => (p.name || '').trim().toLowerCase() === name.trim().toLowerCase());
-    if (!me) return null;
-    return {
-      coinsHeld: Number(me.coinsHeld) || 0,
-      bestScore: Number(me.bestScore) || 0,
-      bestTime: Number(me.bestTime) || 0,
-      bestRounds: Number(me.bestRounds) || 0,
-    };
-  } catch (e) {
-    return null;
-  }
-}
-
-/* in cloud.js */
-
-export async function startGameWithCloudSync() {
-  const cloud = await loadPlayerFromCloud(save.playerName);
-  if (cloud) {
-    save.coins = cloud.coinsHeld;
-    persistSave();
-  }
-  const m = await import('../gameplay/rounds.js');
-  m.startRound(1);
 }

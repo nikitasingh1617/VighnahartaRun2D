@@ -7,7 +7,6 @@ import { DIFFICULTIES } from '../data/difficulties.js';
 import { drawButtons } from '../ui/buttons.js';
 import { fetchLeaderboard, mergeLeaderboards } from '../cloud.js';
 
-/* Cached merged list so it renders instantly; refreshed on entry */
 let cachedBoard = null;
 let loading = false;
 let lastFetch = 0;
@@ -17,17 +16,12 @@ export async function refreshLeaderboard() {
   if (Date.now() - lastFetch < 5000 && cachedBoard) return;
   loading = true;
   const cloud = await fetchLeaderboard();
-  if (cloud) {
-    cachedBoard = mergeLeaderboards(save.leaderboard, cloud);
-  } else {
-    cachedBoard = mergeLeaderboards(save.leaderboard, []);
-  }
+  cachedBoard = mergeLeaderboards(save.leaderboard, cloud || []);
   lastFetch = Date.now();
   loading = false;
 }
 
 export function drawLeaderboardScreen() {
-  /* Kick off a background refresh on first render */
   if (!cachedBoard && !loading) {
     refreshLeaderboard();
   }
@@ -48,13 +42,13 @@ export function drawLeaderboardScreen() {
   ctx.shadowColor = 'rgba(255,150,40,0.6)';
   ctx.shadowBlur = 20;
   ctx.font = 'bold 30px Georgia, serif';
-  ctx.fillText('🏆  LEADERBOARD', W / 2, 58);
+  ctx.fillText('LEADERBOARD', W / 2, 58);
   ctx.shadowBlur = 0;
 
   ctx.fillStyle = 'rgba(255,220,150,0.72)';
   ctx.font = 'italic 12px Georgia, serif';
   ctx.fillText(
-    loading ? 'fetching players…' : 'Top 20 Bhakts across all devices',
+    loading ? 'loading... (offline OK)' : 'Top 20 Bhakts across all devices',
     W / 2, 88
   );
   ctx.restore();
@@ -62,7 +56,6 @@ export function drawLeaderboardScreen() {
   drawOrnateLine(W / 2, 104, 400, 'rgba(255,210,74,0.4)');
   drawCoinPill(W - 90, 40, save.coins);
 
-  /* Panel */
   const panelX = 40, panelY = 118, panelW = W - 80, panelH = 344;
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,0.7)';
@@ -76,8 +69,7 @@ export function drawLeaderboardScreen() {
   rrect(panelX, panelY, panelW, panelH, 14);
   ctx.stroke();
 
-  /* Column positions (all relative to panelX) */
-    const cols = {
+  const cols = {
     rank:    panelX + 18,
     name:    panelX + 56,
     score:   panelX + 200,
@@ -89,7 +81,6 @@ export function drawLeaderboardScreen() {
     date:    panelX + panelW - 18
   };
 
-  /* Header */
   ctx.save();
   ctx.textBaseline = 'middle';
   ctx.fillStyle = 'rgba(255,210,120,0.8)';
@@ -113,7 +104,6 @@ export function drawLeaderboardScreen() {
   ctx.lineTo(panelX + panelW - 14, panelY + 38);
   ctx.stroke();
 
-  /* Rows */
   const lb = cachedBoard || [];
   if (lb.length === 0) {
     ctx.save();
@@ -122,7 +112,7 @@ export function drawLeaderboardScreen() {
     ctx.fillStyle = 'rgba(255,235,200,0.55)';
     ctx.font = 'italic 14px Georgia, serif';
     ctx.fillText(
-      loading ? 'Loading…' : 'No players yet.',
+      loading ? 'Loading...' : 'No players yet.',
       W / 2, panelY + panelH / 2
     );
     ctx.restore();
@@ -144,7 +134,6 @@ export function drawLeaderboardScreen() {
       ctx.save();
       ctx.textBaseline = 'middle';
 
-      /* Rank */
       let rankCol = '#ffe9b0';
       if (i === 0) rankCol = '#ffd24a';
       else if (i === 1) rankCol = '#d8d8e8';
@@ -152,43 +141,36 @@ export function drawLeaderboardScreen() {
       ctx.fillStyle = rankCol;
       ctx.font = 'bold 13px Georgia, serif';
       ctx.textAlign = 'left';
-      const medal = i === 0 ? '①' : i === 1 ? '②' : i === 2 ? '③' : String(i + 1);
+      const medal = i === 0 ? '1' : i === 1 ? '2' : i === 2 ? '3' : String(i + 1);
       ctx.fillText(medal, cols.rank, rowY);
 
-      /* Name */
       ctx.fillStyle = '#ffe9b0';
       ctx.font = 'bold 11px Georgia, serif';
       const name = (e.name || 'Anonymous').slice(0, 14);
       ctx.fillText(name, cols.name, rowY);
 
-      /* Best score */
       ctx.fillStyle = '#ffd24a';
       ctx.font = 'bold 12px Georgia, serif';
       ctx.fillText((e.score || 0) + 'm', cols.score, rowY);
 
-      /* Best time */
       ctx.fillStyle = 'rgba(255,220,180,0.9)';
       ctx.font = 'bold 10.5px system-ui, sans-serif';
       ctx.fillText((e.seconds || 0) + 's', cols.seconds, rowY);
 
-      /* Best rounds */
       const rc = e.roundsCompleted || 0;
       const rCol = rc >= 5 ? '#a8e6a0' : rc >= 3 ? '#ffd24a' : '#ff8a8a';
       ctx.fillStyle = rCol;
       ctx.font = 'bold 11px Georgia, serif';
       ctx.fillText(rc + '/5', cols.rounds, rowY);
 
-            /* Wallet */
       ctx.fillStyle = '#ffd24a';
       ctx.font = 'bold 11px Georgia, serif';
-      ctx.fillText('🪙 ' + (e.coinsHeld || 0), cols.coins, rowY);
+      ctx.fillText((e.coinsHeld || 0) + 'c', cols.coins, rowY);
 
-      /* Scene icon */
       ctx.fillStyle = scene.color;
       ctx.font = 'bold 12px system-ui, sans-serif';
       ctx.fillText(scene.icon, cols.scene, rowY);
 
-      /* Diff chip */
       const dcw = 44, dch = 15;
       const dcx = cols.diff, dcy = rowY;
       ctx.fillStyle = `rgba(${diff.colorRGB},0.20)`;
@@ -203,7 +185,6 @@ export function drawLeaderboardScreen() {
       ctx.textAlign = 'center';
       ctx.fillText(diff.name, dcx + dcw / 2, dcy + 1);
 
-      /* Date */
       ctx.fillStyle = 'rgba(255,235,200,0.5)';
       ctx.font = '9px system-ui, sans-serif';
       ctx.textAlign = 'right';
