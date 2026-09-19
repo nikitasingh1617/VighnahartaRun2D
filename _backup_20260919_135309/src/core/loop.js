@@ -1,8 +1,9 @@
-﻿import { state, camera, player, world } from './state.js';
+import { state, camera, player, world } from './state.js';
 import { updatePlaying } from '../gameplay/playing.js';
-import { updateParticles, updateAmbient, particles } from '../world/particles.js';
+import { updateParticles, updateAmbient } from '../world/particles.js';
 import { draw } from '../draw.js';
 import { playBell, startMenuMusic, stopMenuMusic, playAmbientTick } from './audio.js';
+import { particles } from '../world/particles.js';
 
 let last = performance.now();
 let ambientTimer = 0;

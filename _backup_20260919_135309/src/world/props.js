@@ -1,6 +1,7 @@
-﻿import { ctx } from '../core/canvas.js';
-import { camera, state, player, world } from '../core/state.js';
+import { ctx } from '../core/canvas.js';
+import { camera, state, player } from '../core/state.js';
 import { GROUND_Y, PLATE_X, INTERACT_RANGE } from '../core/config.js';
+import { world } from '../core/state.js';
 import { rrect } from '../util/drawing.js';
 
 export function drawModak(x, y, s, rot) {

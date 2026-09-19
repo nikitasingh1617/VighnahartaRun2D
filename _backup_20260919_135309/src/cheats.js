@@ -1,4 +1,4 @@
-﻿import { state, player, world, setWorldBounds, camera } from './core/state.js';
+import { state, player, world, setWorldBounds } from './core/state.js';
 import { GROUND_Y, PLATE_X } from './core/config.js';
 import { DIFFICULTIES } from './data/difficulties.js';
 import { save, persistSave } from './core/save.js';
@@ -8,6 +8,7 @@ import { resetLightCycle } from './gameplay/lightCycle.js';
 import { setupWorldForRound } from './gameplay/rounds.js';
 import { completeGame } from './gameplay/scoring.js';
 import { initAudio } from './core/audio.js';
+import { camera } from './core/state.js';
 
 let buf = '';
 
@@ -38,7 +39,7 @@ function skipToFinal() {
   player.onGround = true; player.facing = 1; player.holding = true;
   player.crouching = false; player.aarti = false; player.pooja = false;
   camera.x = Math.max(0, Math.min(world.max, player.x - 960 * 0.38));
-  showCheatToast('CHEAT: Round 5 â€” press E to offer.');
+  showCheatToast('CHEAT: Round 5 — press E to offer.');
 }
 
 function triggerPooja() {

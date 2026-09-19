@@ -1,4 +1,4 @@
-﻿import { save, persistSave } from './core/save.js';
+import { save } from './core/save.js';
 
 const CLOUD_URL = 'https://script.google.com/macros/s/AKfycbxDzLQ_c1kSgWa0xYIFOSoQDZIPGcNEXSUB803O3GBUHKKOBdhjo5FBX9i4rSCdXBaJ/exec';
 
@@ -53,7 +53,7 @@ export async function submitRun(run) {
     });
     lastSync = Date.now();
   } catch (e) {
-    /* Offline â€” ignore */
+    /* Offline — ignore */
   } finally {
     syncInFlight = false;
   }
@@ -138,6 +138,7 @@ export async function loadPlayerFromCloud(name) {
 }
 
 /* in cloud.js */
+import { save, persistSave } from './core/save.js';
 
 export async function startGameWithCloudSync() {
   const cloud = await loadPlayerFromCloud(save.playerName);

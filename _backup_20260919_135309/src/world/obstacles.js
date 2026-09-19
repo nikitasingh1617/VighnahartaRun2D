@@ -1,6 +1,7 @@
-﻿import { ctx } from '../core/canvas.js';
-import { camera, state, world } from '../core/state.js';
+import { ctx } from '../core/canvas.js';
+import { camera, state } from '../core/state.js';
 import { GROUND_Y, PLATE_X } from '../core/config.js';
+import { world } from '../core/state.js';
 import { SCENES } from '../data/scenes.js';
 import { DIFFICULTIES } from '../data/difficulties.js';
 import { drawDiya } from './props.js';

@@ -1,7 +1,8 @@
-﻿import { ctx, W, H } from '../core/canvas.js';
-import { camera, state, world } from '../core/state.js';
+import { ctx, W, H } from '../core/canvas.js';
+import { camera, state } from '../core/state.js';
 import { SCENES } from '../data/scenes.js';
 import { GROUND_Y } from '../core/config.js';
+import { world } from '../core/state.js';
 
 const BG_MAX_X = 10500;
 
