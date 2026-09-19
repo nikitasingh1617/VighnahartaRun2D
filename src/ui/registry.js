@@ -7,12 +7,11 @@ import { initAudio, playCoin, playClick, playSceneUnlock, playRoundStart, toggle
 import { syncWallet, startGameWithCloudSync, loadPlayerFromCloud } from '../cloud.js';
 import { enterLeaderboard, refreshLeaderboard } from '../screens/leaderboard.js';
 
-/* Mute button dimensions and per-mode position */
+/* Mute button dimensions */
 const MUTE_W = 36;
 const MUTE_H = 36;
 
 function getMutePosition() {
-  /* Modes with a coin pill at top-right → sit just left of it */
   if (state.mode === 'menu' ||
       state.mode === 'sceneSelect' ||
       state.mode === 'diffSelect' ||
@@ -20,21 +19,15 @@ function getMutePosition() {
       state.mode === 'shop') {
     return { x: W - 200, y: 22 };
   }
-
-  /* Gameplay: sit left of the modak counter */
   if (state.mode === 'playing' || state.mode === 'paused' || state.mode === 'caught') {
     return { x: 700, y: 26 };
   }
-
-  /* Instructions, intro, name entry, exit → top-right corner */
   if (state.mode === 'instructions' ||
       state.mode === 'intro' ||
       state.mode === 'nameEntry' ||
       state.mode === 'exit') {
     return { x: W - 60, y: 22 };
   }
-
-  /* Win screen: hidden (already busy) */
   return null;
 }
 
@@ -44,11 +37,29 @@ function getMuteButton() {
   return {
     id: 'mute-toggle',
     muteButton: true,
-    x: pos.x,
-    y: pos.y,
-    w: MUTE_W,
-    h: MUTE_H
+    x: pos.x, y: pos.y,
+    w: MUTE_W, h: MUTE_H
   };
+}
+
+/* Purchase confirmation modal geometry */
+export function getPurchaseModalRects() {
+  const cw = 460, ch = 260;
+  const cx = W / 2 - cw / 2;
+  const cy = H / 2 - ch / 2;
+  return {
+    cx, cy, cw, ch,
+    cancel:  { x: cx + 20,  y: cy + ch - 76, w: 200, h: 52 },
+    confirm: { x: cx + 240, y: cy + ch - 76, w: 200, h: 52 }
+  };
+}
+
+function getPurchaseModalButtons() {
+  const r = getPurchaseModalRects();
+  return [
+    { id:'cancel-purchase',  label:'CANCEL',  x: r.cancel.x,  y: r.cancel.y,  w: r.cancel.w,  h: r.cancel.h,  accent:'#ff8a8a' },
+    { id:'confirm-purchase', label:'CONFIRM', x: r.confirm.x, y: r.confirm.y, w: r.confirm.w, h: r.confirm.h, accent:'#a8e6a0' }
+  ];
 }
 
 function getBaseButtons() {
@@ -102,7 +113,7 @@ function getBaseButtons() {
     return [{
       id:'name-go',
       label: ready ? 'LETS GO' : 'TYPE A NAME TO BEGIN',
-      x: cx - 180, y: 410, w: 360, h: 46,
+      x: cx - 180, y: 434, w: 360, h: 44,
       accent: ready ? '#a8e6a0' : '#8a7a55',
       disabled: !ready
     }];
@@ -163,6 +174,9 @@ function getBaseButtons() {
 }
 
 export function getCurrentButtons() {
+  /* Modal takes precedence over everything */
+  if (state.pendingPurchase) return getPurchaseModalButtons();
+
   const list = getBaseButtons();
   const mute = getMuteButton();
   if (mute) list.push(mute);
@@ -184,6 +198,28 @@ export function handleButton(id) {
     const nowMuted = toggleMute();
     state.muteToastMsg = nowMuted ? 'SOUND OFF' : 'SOUND ON';
     state.muteToast = 1.6;
+    return;
+  }
+
+  /* ---- Purchase confirmation ---- */
+  if (id === 'confirm-purchase') {
+    const key = state.pendingPurchase;
+    if (key) {
+      const outfit = OUTFITS[key];
+      if (outfit && save.coins >= outfit.cost) {
+        save.coins -= outfit.cost;
+        save.ownedOutfits.push(key);
+        save.selectedOutfit = key;
+        playCoin();
+        persistSave();
+        syncWallet();
+      }
+    }
+    state.pendingPurchase = null;
+    return;
+  }
+  if (id === 'cancel-purchase') {
+    state.pendingPurchase = null;
     return;
   }
 
@@ -213,10 +249,7 @@ export function handleButton(id) {
     state.mode = 'menu'; return;
   }
   if (id === 'lb-back') { state.mode = 'menu'; return; }
-  if (id === 'lb-refresh') {
-    refreshLeaderboard(true);
-    return;
-  }
+  if (id === 'lb-refresh') { refreshLeaderboard(true); return; }
   if (id.startsWith('scene-')) {
     const key = id.replace('scene-', '');
     if (!save.unlockedScenes[key]) return;
@@ -242,17 +275,17 @@ export function handleButton(id) {
   if (id.startsWith('outfit-')) {
     const key = id.replace('outfit-', '');
     const outfit = OUTFITS[key];
+    if (!outfit) return;
+
     if (save.ownedOutfits.includes(key)) {
+      /* Already owned — equip immediately, no confirmation needed */
       save.selectedOutfit = key;
       persistSave();
     } else if (save.coins >= outfit.cost) {
-      save.coins -= outfit.cost;
-      save.ownedOutfits.push(key);
-      save.selectedOutfit = key;
-      playCoin();
-      persistSave();
-      syncWallet();
+      /* Not owned, can afford — open confirmation */
+      state.pendingPurchase = key;
     }
+    /* If can't afford, do nothing (card already shows "NEED X MORE") */
     return;
   }
   if (id === 'resume') { state.mode = 'playing'; return; }

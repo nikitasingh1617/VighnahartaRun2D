@@ -27,6 +27,7 @@ export const state = {
   celebration: null,
   showFullscreenNotice: false,
   pendingButtonAction: null,
+  pendingPurchase: null,
   runRoundsCompleted: 0,
   fullscreenToast: 0,
 };

@@ -107,14 +107,7 @@ export function drawNameEntryScreen() {
   /* Virtual keyboard */
   drawKeyboard();
 
-  /* Hint */
-  ctx.save();
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = 'rgba(255,235,200,0.5)';
-  ctx.font = '11px system-ui, sans-serif';
-  ctx.fillText('Up to 14 letters  ·  ⌫ to delete', W / 2, 388);
-  ctx.restore();
+
 
   drawButtons();
 }

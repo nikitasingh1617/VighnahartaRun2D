@@ -1,7 +1,9 @@
 import { ctx, W, H } from '../core/canvas.js';
-import { ui } from '../core/state.js';
+import { ui, state } from '../core/state.js';
+import { save } from '../core/save.js';
+import { OUTFITS } from '../data/outfits.js';
 import { rrect } from '../util/drawing.js';
-import { getCurrentButtons } from './registry.js';
+import { getCurrentButtons, getPurchaseModalRects } from './registry.js';
 import { drawSceneCard, drawDiffCard, drawOutfitCard } from './cards.js';
 import { isMuted } from '../core/audio.js';
 
@@ -42,7 +44,6 @@ export function drawButton(b, hovered) {
   ctx.restore();
 }
 
-/* Mute toggle — small square button with a speaker icon */
 function drawMuteButton(b, hovered) {
   const { x, y, w, h } = b;
   const muted = isMuted();
@@ -57,16 +58,13 @@ function drawMuteButton(b, hovered) {
   g.addColorStop(0, 'rgba(38,18,24,0.92)');
   g.addColorStop(1, 'rgba(16,7,13,0.96)');
   ctx.fillStyle = g;
-  rrect(x, y, w, h, 10);
-  ctx.fill();
+  rrect(x, y, w, h, 10); ctx.fill();
   ctx.shadowBlur = 0;
 
   ctx.strokeStyle = hovered ? accent : 'rgba(255,210,74,0.5)';
   ctx.lineWidth = hovered ? 2.2 : 1.4;
-  rrect(x, y, w, h, 10);
-  ctx.stroke();
+  rrect(x, y, w, h, 10); ctx.stroke();
 
-  /* Speaker body */
   ctx.fillStyle = accent;
   ctx.beginPath();
   ctx.moveTo(cx - 8, cy - 3);
@@ -79,7 +77,6 @@ function drawMuteButton(b, hovered) {
   ctx.fill();
 
   if (muted) {
-    /* Slash */
     ctx.strokeStyle = '#ff5b5b';
     ctx.lineWidth = 2.4;
     ctx.lineCap = 'round';
@@ -88,7 +85,6 @@ function drawMuteButton(b, hovered) {
     ctx.lineTo(cx + 12, cy + 6);
     ctx.stroke();
   } else {
-    /* Sound waves */
     ctx.strokeStyle = accent;
     ctx.lineWidth = 1.6;
     ctx.lineCap = 'round';
@@ -99,11 +95,72 @@ function drawMuteButton(b, hovered) {
     ctx.arc(cx + 1, cy, 8, -0.6, 0.6);
     ctx.stroke();
   }
+  ctx.restore();
+}
+
+/* Purchase confirmation modal — drawn behind the modal buttons */
+function drawPurchaseModal() {
+  const key = state.pendingPurchase;
+  if (!key) return;
+  const outfit = OUTFITS[key];
+  if (!outfit) return;
+
+  /* Dim the whole scene */
+  ctx.fillStyle = 'rgba(4, 2, 12, 0.86)';
+  ctx.fillRect(0, 0, W, H);
+
+  const r = getPurchaseModalRects();
+
+  /* Card */
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.9)';
+  ctx.shadowBlur = 32;
+  ctx.fillStyle = 'rgba(24, 10, 8, 0.98)';
+  rrect(r.cx, r.cy, r.cw, r.ch, 16);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.strokeStyle = 'rgba(255,210,74,0.85)';
+  ctx.lineWidth = 2.5;
+  rrect(r.cx, r.cy, r.cw, r.ch, 16);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,210,74,0.28)';
+  ctx.lineWidth = 1;
+  rrect(r.cx + 6, r.cy + 6, r.cw - 12, r.ch - 12, 12);
+  ctx.stroke();
+
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  /* Title */
+  ctx.fillStyle = '#ffd24a';
+  ctx.font = 'bold 20px Georgia, serif';
+  ctx.fillText('CONFIRM PURCHASE', W / 2, r.cy + 38);
+
+  /* Subtitle — outfit name */
+  ctx.fillStyle = 'rgba(255, 235, 200, 0.75)';
+  ctx.font = 'italic 15px Georgia, serif';
+  ctx.fillText(outfit.name, W / 2, r.cy + 74);
+
+  /* Cost */
+  ctx.fillStyle = '#ffd24a';
+  ctx.font = 'bold 30px Georgia, serif';
+  ctx.fillText('\u20B2 ' + outfit.cost, W / 2, r.cy + 118);
+
+  /* Balance after */
+  const after = Math.max(0, save.coins - outfit.cost);
+  ctx.fillStyle = 'rgba(168, 230, 160, 0.9)';
+  ctx.font = '13px system-ui, sans-serif';
+  ctx.fillText('Balance after: \u20B2 ' + after, W / 2, r.cy + 152);
 
   ctx.restore();
 }
 
 export function drawButtons() {
+  /* Modal overlay + card drawn first, then modal buttons on top */
+  if (state.pendingPurchase) drawPurchaseModal();
+
   for (const b of getCurrentButtons()) {
     if (b.muteButton) {
       drawMuteButton(b, ui.hoveredId === b.id);
