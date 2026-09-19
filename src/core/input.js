@@ -1,6 +1,6 @@
 ﻿import { state, keys, player, ui } from './state.js';
 import { initAudio } from './audio.js';
-import { save, persistSave } from './core/save.js';
+import { save, persistSave } from './save.js';
 import { screenToCanvas } from '../util/drawing.js';
 import { hitTestButton, handleButton } from '../ui/registry.js';
 import { processCheatKey } from '../cheats.js';
