@@ -1,6 +1,6 @@
-import { state, keys, player, ui } from './state.js';
+﻿import { state, keys, player, ui } from './state.js';
 import { initAudio } from './audio.js';
-import { save, persistSave } from './core/save.js';
+import { save, persistSave } from './save.js';
 import { screenToCanvas } from '../util/drawing.js';
 import { hitTestButton, handleButton } from '../ui/registry.js';
 import { processCheatKey } from '../cheats.js';
@@ -62,7 +62,7 @@ export function installInput() {
   document.addEventListener('fullscreenchange', onFsChange);
   document.addEventListener('webkitfullscreenchange', onFsChange);
 
-  /* ---- First tap anywhere → fullscreen ---- */
+  /* ---- First tap anywhere â†’ fullscreen ---- */
   const firstTap = e => {
     if (!ui.hasTouch) return;
     requestFullscreen();
@@ -220,7 +220,7 @@ export function installInput() {
     initAudio();
 
     /* Retry fullscreen on every tap until it succeeds.
-       Fires synchronously — preserves the user gesture. */
+       Fires synchronously â€” preserves the user gesture. */
     if (ui.hasTouch && !fullscreenOK) {
       requestFullscreen();
       state.fullscreenToast = 2.5;
