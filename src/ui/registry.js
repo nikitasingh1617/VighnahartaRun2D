@@ -5,7 +5,7 @@ import { SCENE_ORDER, SCENES } from '../data/scenes.js';
 import { OUTFITS } from '../data/outfits.js';
 import { syncWallet } from '../cloud.js';
 import { startGameWithCloudSync } from '../cloud.js';
-import { loadPlayerFromCloud, syncWallet } from '../cloud.js';
+import { loadPlayerFromCloud} from '../cloud.js';
 import { initAudio, playCoin, playClick, playSceneUnlock, playRoundStart } from '../core/audio.js';
 
 export function getCurrentButtons() {
