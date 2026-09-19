@@ -1,0 +1,40 @@
+import { ctx, W, H } from '../core/canvas.js';
+import { camera } from '../core/state.js';
+import { drawMenuBackground } from './_background.js';
+import { drawOrnateLine, drawCoinPill } from '../util/drawing.js';
+import { save } from '../core/save.js';
+import { drawButtons } from '../ui/buttons.js';
+
+export function drawSceneSelectScreen() {
+  drawMenuBackground();
+  ctx.save();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const halo = ctx.createRadialGradient(W/2, 92, 20, W/2, 92, 340);
+  halo.addColorStop(0, 'rgba(255,170,60,0.30)');
+  halo.addColorStop(1, 'rgba(255,170,60,0)');
+  ctx.fillStyle = halo;
+  ctx.beginPath(); ctx.arc(W/2, 92, 340, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,210,120,0.82)';
+  ctx.font = 'bold 11px Georgia, serif';
+  ctx.fillText('✦    C H O O S E   Y O U R   S C E N E    ✦', W/2, 42);
+  const tg = ctx.createLinearGradient(0, 52, 0, 100);
+  tg.addColorStop(0, '#fff6d0'); tg.addColorStop(0.5, '#ffd24a'); tg.addColorStop(1, '#e8a020');
+  ctx.fillStyle = tg;
+  ctx.shadowColor = 'rgba(255,150,40,0.6)'; ctx.shadowBlur = 24;
+  ctx.font = 'bold 38px Georgia, serif';
+  ctx.fillText('SELECT SCENE', W/2, 76);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(255,220,150,0.8)';
+  ctx.font = 'italic 14px Georgia, serif';
+  ctx.fillText('Where will you carry the modaks today?', W/2, 108);
+  ctx.restore();
+  drawOrnateLine(W/2, 126, 420, 'rgba(255,210,74,0.4)');
+  drawCoinPill(W - 90, 40, save.coins);
+  drawButtons();
+  ctx.save();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(255,235,190,0.45)';
+  ctx.font = '12px system-ui, sans-serif';
+  ctx.fillText('Tip: press  1 · 2 · 3  to choose quickly', W/2, H - 16);
+  ctx.restore();
+}
