@@ -5,31 +5,60 @@ import { save } from '../core/save.js';
 import { SCENES } from '../data/scenes.js';
 import { DIFFICULTIES } from '../data/difficulties.js';
 import { drawButtons } from '../ui/buttons.js';
-import { fetchLeaderboard, mergeLeaderboards } from '../cloud.js';
+import { fetchLeaderboard, mergeLeaderboards, getCachedBoard } from '../cloud.js';
 
+/* Render state */
 let cachedBoard = null;
 let loading = false;
 let lastFetch = 0;
+let lastError = false;
 
+/* ------------------------------------------------------------
+   Populate the cached board from local + cloud cache instantly.
+   No network. Never waits.
+   ------------------------------------------------------------ */
+function populateFromCache() {
+  const cloudCache = getCachedBoard();
+  cachedBoard = mergeLeaderboards(save.leaderboard, cloudCache || []);
+}
+
+/* Background refresh from the network */
 export function refreshLeaderboard(force = false) {
   if (loading) return;
-  if (!force && Date.now() - lastFetch < 1500 && cachedBoard) return;
+  if (!force && Date.now() - lastFetch < 3000 && cachedBoard) return;
 
   loading = true;
+  lastError = false;
+
   fetchLeaderboard().then(cloud => {
-    cachedBoard = mergeLeaderboards(save.leaderboard, cloud || []);
+    if (cloud) {
+      cachedBoard = mergeLeaderboards(save.leaderboard, cloud);
+    } else {
+      lastError = true;
+      /* Keep whatever we had — don't wipe the screen */
+      if (!cachedBoard) {
+        cachedBoard = mergeLeaderboards(save.leaderboard, []);
+      }
+    }
     lastFetch = Date.now();
     loading = false;
   });
 }
 
-/* Called once when the leaderboard screen is entered */
+/* Called every time the user enters the leaderboard screen */
 export function enterLeaderboard() {
+  /* Instant: show local + cached cloud */
+  populateFromCache();
+  /* Then kick off a background refresh */
   refreshLeaderboard(true);
 }
 
 export function drawLeaderboardScreen() {
-  if (!cachedBoard && !loading) refreshLeaderboard(false);
+  /* First render ever — populate before drawing */
+  if (!cachedBoard) {
+    populateFromCache();
+    if (!loading) refreshLeaderboard(true);
+  }
 
   drawMenuBackground();
 
@@ -52,10 +81,7 @@ export function drawLeaderboardScreen() {
 
   ctx.fillStyle = 'rgba(255,220,150,0.72)';
   ctx.font = 'italic 12px Georgia, serif';
-  ctx.fillText(
-    loading ? 'refreshing…' : 'Top 20 Bhakts across all devices',
-    W / 2, 88
-  );
+  ctx.fillText('Top 20 Bhakts across all devices', W / 2, 88);
   ctx.restore();
 
   drawOrnateLine(W / 2, 104, 400, 'rgba(255,210,74,0.4)');
@@ -116,10 +142,10 @@ export function drawLeaderboardScreen() {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(255,235,200,0.55)';
     ctx.font = 'italic 14px Georgia, serif';
-    ctx.fillText(
-      loading ? 'Loading…' : 'No players yet.',
-      W / 2, panelY + panelH / 2
-    );
+    ctx.fillText('No players yet — be the first!', W / 2, panelY + panelH / 2);
+    ctx.fillStyle = 'rgba(255,235,200,0.4)';
+    ctx.font = '12px system-ui, sans-serif';
+    ctx.fillText('Complete at least one round to appear here.', W / 2, panelY + panelH / 2 + 26);
     ctx.restore();
   } else {
     const rowH = 26;
@@ -197,6 +223,28 @@ export function drawLeaderboardScreen() {
 
       ctx.restore();
     }
+  }
+
+  /* Small loading indicator — never blocks, never says "No players"
+     while we have cached data to show */
+  if (loading) {
+    ctx.save();
+    const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 300);
+    ctx.globalAlpha = 0.6 + pulse * 0.3;
+    ctx.fillStyle = '#ffd24a';
+    ctx.font = 'italic 11px Georgia, serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('refreshing…', panelX + panelW - 20, panelY + 22);
+    ctx.restore();
+  } else if (lastError) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,140,140,0.7)';
+    ctx.font = 'italic 11px Georgia, serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('offline — showing cached', panelX + panelW - 20, panelY + 22);
+    ctx.restore();
   }
 
   drawButtons();

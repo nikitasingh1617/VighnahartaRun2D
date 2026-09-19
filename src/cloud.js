@@ -2,23 +2,63 @@
 
 const CLOUD_URL = 'https://script.google.com/macros/s/AKfycbxDzLQ_c1kSgWa0xYIFOSoQDZIPGcNEXSUB803O3GBUHKKOBdhjo5FBX9i4rSCdXBaJ/exec';
 
+const CACHE_KEY = 'vighanharta_cloud_cache';
+const CACHE_TTL = 5 * 60 * 1000;   // 5 minutes
+
 let lastSync = 0;
 let syncInFlight = false;
 
+/* ------------------------------------------------------------
+   Local cache of the last successful cloud fetch
+   ------------------------------------------------------------ */
+function readCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.board)) return null;
+    return parsed;
+  } catch (e) {
+    return null;
+  }
+}
+
+function writeCache(board) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      board,
+      savedAt: Date.now()
+    }));
+  } catch (e) {}
+}
+
+/* Return the cached cloud board regardless of age — used as instant fallback */
+export function getCachedBoard() {
+  const c = readCache();
+  return c ? c.board : null;
+}
+
+/* ------------------------------------------------------------
+   Fetch leaderboard from Google Sheets
+   ------------------------------------------------------------ */
 export async function fetchLeaderboard() {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
     const res = await fetch(CLOUD_URL, {
       method: 'GET',
+      redirect: 'follow',
       signal: controller.signal
     });
+
     clearTimeout(timeoutId);
     if (!res.ok) return null;
+
     const data = await res.json();
     if (!Array.isArray(data)) return null;
 
-    return data
+    const cleaned = data
       .filter(p => p.name)
       .map(p => ({
         name: String(p.name).trim(),
@@ -31,11 +71,18 @@ export async function fetchLeaderboard() {
         lastUpdated: p.lastUpdated || ''
       }))
       .filter(p => p.name.length > 0);
+
+    /* Cache successful result */
+    writeCache(cleaned);
+    return cleaned;
   } catch (e) {
     return null;
   }
 }
 
+/* ------------------------------------------------------------
+   Submit a run
+   ------------------------------------------------------------ */
 export async function submitRun(run) {
   if (!save.playerName || save.playerName.trim().length < 1) return;
   if (syncInFlight) return;
@@ -54,10 +101,11 @@ export async function submitRun(run) {
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
     await fetch(CLOUD_URL, {
       method: 'POST',
       body: JSON.stringify(payload),
+      redirect: 'follow',
       signal: controller.signal
     });
     clearTimeout(timeoutId);
@@ -69,6 +117,9 @@ export async function submitRun(run) {
   }
 }
 
+/* ------------------------------------------------------------
+   Wallet sync
+   ------------------------------------------------------------ */
 export async function syncWallet() {
   if (!save.playerName || save.playerName.trim().length < 1) return;
   if (syncInFlight) return;
@@ -77,7 +128,7 @@ export async function syncWallet() {
   syncInFlight = true;
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
     await fetch(CLOUD_URL, {
       method: 'POST',
       body: JSON.stringify({
@@ -85,6 +136,7 @@ export async function syncWallet() {
         coinsHeld: Number(save.coins) || 0,
         lastUpdated: new Date().toISOString()
       }),
+      redirect: 'follow',
       signal: controller.signal
     });
     clearTimeout(timeoutId);
@@ -96,13 +148,35 @@ export async function syncWallet() {
   }
 }
 
+/* ------------------------------------------------------------
+   Load a single player's wallet from cloud
+   ------------------------------------------------------------ */
 export async function loadPlayerFromCloud(name) {
   if (!name || name.trim().length < 1) return null;
+
+  /* First check the cached board — instant */
+  const cached = getCachedBoard();
+  if (cached) {
+    const hit = cached.find(p =>
+      (p.name || '').trim().toLowerCase() === name.trim().toLowerCase()
+    );
+    if (hit) {
+      return {
+        coinsHeld: hit.coinsHeld,
+        bestScore: hit.bestScore,
+        bestTime: hit.bestTime,
+        bestRounds: hit.bestRounds
+      };
+    }
+  }
+
+  /* Otherwise fetch fresh */
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
     const res = await fetch(CLOUD_URL, {
       method: 'GET',
+      redirect: 'follow',
       signal: controller.signal
     });
     clearTimeout(timeoutId);
@@ -125,12 +199,9 @@ export async function loadPlayerFromCloud(name) {
   }
 }
 
-/* Non-blocking: starts the round immediately, syncs wallet in background. */
 export function startGameWithCloudSync() {
   requestAnimationFrame(() => {
-    import('./gameplay/rounds.js').then(m => {
-      m.startRound(1);
-    });
+    import('./gameplay/rounds.js').then(m => m.startRound(1));
   });
 
   loadPlayerFromCloud(save.playerName).then(cloud => {
@@ -142,16 +213,20 @@ export function startGameWithCloudSync() {
   });
 }
 
+/* ------------------------------------------------------------
+   Merge local + cloud boards
+   ------------------------------------------------------------ */
 export function mergeLeaderboards(localBoard, cloudBoard) {
-  if (!cloudBoard || cloudBoard.length === 0) return localBoard;
+  const cloud = cloudBoard || [];
+  if (cloud.length === 0 && (!localBoard || localBoard.length === 0)) return [];
 
   const merged = new Map();
 
-  for (const e of localBoard) {
+  for (const e of (localBoard || [])) {
     merged.set(e.name, { ...e });
   }
 
-  for (const p of cloudBoard) {
+  for (const p of cloud) {
     const existing = merged.get(p.name);
     if (!existing || p.bestScore >= (existing.score || 0)) {
       merged.set(p.name, {
