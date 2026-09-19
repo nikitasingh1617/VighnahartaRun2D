@@ -39,7 +39,7 @@ function update(dt) {
 
   if (state.cheatToast > 0) state.cheatToast = Math.max(0, state.cheatToast - dt);
   if (state.muteToast  > 0) state.muteToast  = Math.max(0, state.muteToast  - dt);
-    if (state.fullscreenToast > 0) state.fullscreenToast = Math.max(0, state.fullscreenToast - dt);
+  if (state.fullscreenToast > 0) state.fullscreenToast = Math.max(0, state.fullscreenToast - dt);
   if (state.shake > 0) state.shake = Math.max(0, state.shake - dt * 2.2);
   if (state.flash > 0) state.flash = Math.max(0, state.flash - dt * 2.0);
   if (state.fade  > 0) state.fade  = Math.max(0, state.fade  - dt * 2.6);

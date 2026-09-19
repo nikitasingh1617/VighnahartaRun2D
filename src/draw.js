@@ -95,22 +95,18 @@ if (state.mode === 'exit')         { drawExitScreen();         return; }
   drawCheatToast();
     drawTouchControls();
   drawFullscreenToast();
-
 }
 
 function drawFullscreenToast() {
-  if (state.fullscreenToast <= 0) return;
-
+  if (!state.fullscreenToast || state.fullscreenToast <= 0) return;
   const a = Math.min(1, state.fullscreenToast / 0.4);
-  const fadeIn = Math.min(1, (3.2 - state.fullscreenToast) / 0.3);
-  const alpha = a * fadeIn;
 
-  const tw = 420, th = 76;
+  const tw = 380, th = 68;
   const tx = W / 2 - tw / 2;
   const ty = 20;
 
   ctx.save();
-  ctx.globalAlpha = alpha;
+  ctx.globalAlpha = a;
   ctx.shadowColor = 'rgba(0,0,0,0.7)';
   ctx.shadowBlur = 20;
   ctx.fillStyle = 'rgba(20, 10, 8, 0.96)';
@@ -124,15 +120,14 @@ function drawFullscreenToast() {
   ctx.stroke();
 
   ctx.fillStyle = '#ffd24a';
-  ctx.font = 'bold 15px Georgia, serif';
+  ctx.font = 'bold 14px Georgia, serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('GOING FULLSCREEN…', W / 2, ty + 24);
+  ctx.fillText('GOING FULLSCREEN...', W / 2, ty + 22);
 
-  ctx.fillStyle = 'rgba(255, 240, 210, 0.9)';
-  ctx.font = '12px system-ui, sans-serif';
-  ctx.fillText('Chrome will show a small notice at the top.', W / 2, ty + 46);
-  ctx.fillText('Please wait 2–3 seconds — do not tap it.', W / 2, ty + 62);
+  ctx.fillStyle = 'rgba(255, 240, 210, 0.85)';
+  ctx.font = '11px system-ui, sans-serif';
+  ctx.fillText('Chrome shows a notice for 2-3s. Just wait.', W / 2, ty + 44);
 
   ctx.restore();
 }

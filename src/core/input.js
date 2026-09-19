@@ -1,11 +1,10 @@
 import { state, keys, player, ui } from './state.js';
 import { initAudio } from './audio.js';
-import { save, persistSave } from './save.js';
+import { save, persistSave } from './core/save.js';
 import { screenToCanvas } from '../util/drawing.js';
 import { hitTestButton, handleButton } from '../ui/registry.js';
 import { processCheatKey } from '../cheats.js';
 import { cvs, W } from './canvas.js';
-import { startGameWithCloudSync } from '../cloud.js';
 import {
   hitTestTouchButton,
   pressTouchButton,
@@ -22,18 +21,32 @@ function clampScroll(v) {
   return Math.max(0, Math.min(state.instructionsMaxScroll, v));
 }
 
-/* Fullscreen bookkeeping — set once per session */
-let fullscreenAsked = false;
+/* ---- Fullscreen state ---- */
+let fullscreenOK = false;
+let lastFsTry = 0;
 
-function requestFullscreenNow() {
+function requestFullscreen() {
+  if (fullscreenOK) return;
+  if (document.fullscreenElement || document.webkitFullscreenElement) {
+    fullscreenOK = true;
+    return;
+  }
+
+  /* Throttle: at most one attempt every 800 ms */
+  const now = performance.now();
+  if (now - lastFsTry < 800) return;
+  lastFsTry = now;
+
   try {
     const el = document.documentElement;
     if (el.requestFullscreen) {
-      el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+      const p = el.requestFullscreen({ navigationUI: 'hide' });
+      if (p && p.catch) p.catch(() => {});
     } else if (el.webkitRequestFullscreen) {
       el.webkitRequestFullscreen();
     }
   } catch (e) {}
+
   try {
     if (screen.orientation && screen.orientation.lock) {
       screen.orientation.lock('landscape').catch(() => {});
@@ -42,6 +55,24 @@ function requestFullscreenNow() {
 }
 
 export function installInput() {
+  /* Track fullscreen status */
+  const onFsChange = () => {
+    fullscreenOK = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  };
+  document.addEventListener('fullscreenchange', onFsChange);
+  document.addEventListener('webkitfullscreenchange', onFsChange);
+
+  /* ---- First tap anywhere → fullscreen ---- */
+  const firstTap = e => {
+    if (!ui.hasTouch) return;
+    requestFullscreen();
+    state.fullscreenToast = 2.5;
+    document.removeEventListener('pointerdown', firstTap);
+    document.removeEventListener('touchstart', firstTap);
+  };
+  document.addEventListener('pointerdown', firstTap, { passive: true });
+  document.addEventListener('touchstart',  firstTap, { passive: true });
+
   /* ---- Wheel scroll ---- */
   cvs.addEventListener('wheel', e => {
     if (!isScrollMode()) return;
@@ -91,12 +122,12 @@ export function installInput() {
         save.playerName = (save.playerName || '').slice(0, -1);
         persistSave(); return;
       }
-            if (k === 'Enter') {
+      if (k === 'Enter') {
         if (save.playerName.trim().length >= 1) {
           save.playerName = save.playerName.trim();
           persistSave();
           state.delivered = 0;
-          startGameWithCloudSync();
+          import('../cloud.js').then(c => c.startGameWithCloudSync());
         }
         return;
       }
@@ -188,14 +219,11 @@ export function installInput() {
   cvs.addEventListener('pointerdown', e => {
     initAudio();
 
-    /* First tap on any touch device: request fullscreen in the
-       background, show a toast, but DO NOT block the button. */
-    if (ui.hasTouch && !fullscreenAsked) {
-      fullscreenAsked = true;
-      state.fullscreenToast = 3.2;
-      // Fire fullscreen on the next tick so this tap's action
-      // renders first — no perceived lag.
-      setTimeout(() => requestFullscreenNow(), 30);
+    /* Retry fullscreen on every tap until it succeeds.
+       Fires synchronously — preserves the user gesture. */
+    if (ui.hasTouch && !fullscreenOK) {
+      requestFullscreen();
+      state.fullscreenToast = 2.5;
     }
 
     const p = screenToCanvas(e.clientX, e.clientY);
@@ -220,7 +248,7 @@ export function installInput() {
       }
     }
 
-    /* UI buttons — fire immediately, no modal */
+    /* UI buttons */
     const btn = hitTestButton(p.x, p.y);
     if (btn) {
       handleButton(btn.id);
