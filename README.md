@@ -80,12 +80,6 @@ VighnahartaRun2D/
 
 Mobile: on-screen touch buttons appear automatically.
 
-## Cheat codes (type on keyboard anywhere in the game)
-
-- `bappa` — jump to Round 5
-- `pooja` — instant win + Pooja
-- `laxmi` — +5000 coins
-- `ganesh` — unlock all scenes (if wired)
 
 ## Cloud leaderboard (optional)
 
