@@ -3,13 +3,54 @@
 const CLOUD_URL = 'https://script.google.com/macros/s/AKfycbxDzLQ_c1kSgWa0xYIFOSoQDZIPGcNEXSUB803O3GBUHKKOBdhjo5FBX9i4rSCdXBaJ/exec';
 
 const CACHE_KEY = 'vighanharta_cloud_cache';
-const CACHE_TTL = 5 * 60 * 1000;   // 5 minutes
 
 let lastSync = 0;
 let syncInFlight = false;
 
 /* ------------------------------------------------------------
-   Local cache of the last successful cloud fetch
+   JSONP fetch — bypasses CORS entirely
+   ------------------------------------------------------------ */
+function jsonpGet(url, timeoutMs = 10000) {
+  return new Promise((resolve, reject) => {
+    const cbName = '__vh_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+    let done = false;
+
+    const script = document.createElement('script');
+    const timeoutId = setTimeout(() => {
+      if (done) return;
+      done = true;
+      cleanup();
+      reject(new Error('timeout'));
+    }, timeoutMs);
+
+    function cleanup() {
+      try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
+      clearTimeout(timeoutId);
+    }
+
+    window[cbName] = function (data) {
+      if (done) return;
+      done = true;
+      cleanup();
+      resolve(data);
+    };
+
+    script.onerror = () => {
+      if (done) return;
+      done = true;
+      cleanup();
+      reject(new Error('script error'));
+    };
+
+    const sep = url.indexOf('?') >= 0 ? '&' : '?';
+    script.src = url + sep + 'callback=' + cbName + '&t=' + Date.now();
+    document.head.appendChild(script);
+  });
+}
+
+/* ------------------------------------------------------------
+   Local cache
    ------------------------------------------------------------ */
 function readCache() {
   try {
@@ -32,34 +73,21 @@ function writeCache(board) {
   } catch (e) {}
 }
 
-/* Return the cached cloud board regardless of age — used as instant fallback */
 export function getCachedBoard() {
   const c = readCache();
   return c ? c.board : null;
 }
 
 /* ------------------------------------------------------------
-   Fetch leaderboard from Google Sheets
+   Fetch leaderboard via JSONP
    ------------------------------------------------------------ */
 export async function fetchLeaderboard() {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-    const res = await fetch(CLOUD_URL, {
-      method: 'GET',
-      redirect: 'follow',
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
-    if (!res.ok) return null;
-
-    const data = await res.json();
+    const data = await jsonpGet(CLOUD_URL, 10000);
     if (!Array.isArray(data)) return null;
 
     const cleaned = data
-      .filter(p => p.name)
+      .filter(p => p && p.name)
       .map(p => ({
         name: String(p.name).trim(),
         bestScore: Number(p.bestScore) || 0,
@@ -72,7 +100,6 @@ export async function fetchLeaderboard() {
       }))
       .filter(p => p.name.length > 0);
 
-    /* Cache successful result */
     writeCache(cleaned);
     return cleaned;
   } catch (e) {
@@ -81,7 +108,7 @@ export async function fetchLeaderboard() {
 }
 
 /* ------------------------------------------------------------
-   Submit a run
+   POST — use no-cors fire-and-forget
    ------------------------------------------------------------ */
 export async function submitRun(run) {
   if (!save.playerName || save.playerName.trim().length < 1) return;
@@ -100,26 +127,20 @@ export async function submitRun(run) {
   };
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
     await fetch(CLOUD_URL, {
       method: 'POST',
-      body: JSON.stringify(payload),
-      redirect: 'follow',
-      signal: controller.signal
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload)
     });
-    clearTimeout(timeoutId);
     lastSync = Date.now();
   } catch (e) {
-    /* Offline — ignore */
+    /* fire and forget */
   } finally {
     syncInFlight = false;
   }
 }
 
-/* ------------------------------------------------------------
-   Wallet sync
-   ------------------------------------------------------------ */
 export async function syncWallet() {
   if (!save.playerName || save.playerName.trim().length < 1) return;
   if (syncInFlight) return;
@@ -127,34 +148,30 @@ export async function syncWallet() {
 
   syncInFlight = true;
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
     await fetch(CLOUD_URL, {
       method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
         name: save.playerName.trim(),
         coinsHeld: Number(save.coins) || 0,
         lastUpdated: new Date().toISOString()
-      }),
-      redirect: 'follow',
-      signal: controller.signal
+      })
     });
-    clearTimeout(timeoutId);
     lastSync = Date.now();
   } catch (e) {
-    /* Ignore */
+    /* ignore */
   } finally {
     syncInFlight = false;
   }
 }
 
 /* ------------------------------------------------------------
-   Load a single player's wallet from cloud
+   Load single player
    ------------------------------------------------------------ */
 export async function loadPlayerFromCloud(name) {
   if (!name || name.trim().length < 1) return null;
 
-  /* First check the cached board — instant */
   const cached = getCachedBoard();
   if (cached) {
     const hit = cached.find(p =>
@@ -170,20 +187,9 @@ export async function loadPlayerFromCloud(name) {
     }
   }
 
-  /* Otherwise fetch fresh */
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-    const res = await fetch(CLOUD_URL, {
-      method: 'GET',
-      redirect: 'follow',
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-    if (!res.ok) return null;
-    const data = await res.json();
+    const data = await jsonpGet(CLOUD_URL, 10000);
     if (!Array.isArray(data)) return null;
-
     const me = data.find(p =>
       (p.name || '').trim().toLowerCase() === name.trim().toLowerCase()
     );
@@ -213,9 +219,6 @@ export function startGameWithCloudSync() {
   });
 }
 
-/* ------------------------------------------------------------
-   Merge local + cloud boards
-   ------------------------------------------------------------ */
 export function mergeLeaderboards(localBoard, cloudBoard) {
   const cloud = cloudBoard || [];
   if (cloud.length === 0 && (!localBoard || localBoard.length === 0)) return [];

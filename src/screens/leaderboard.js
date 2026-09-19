@@ -7,22 +7,16 @@ import { DIFFICULTIES } from '../data/difficulties.js';
 import { drawButtons } from '../ui/buttons.js';
 import { fetchLeaderboard, mergeLeaderboards, getCachedBoard } from '../cloud.js';
 
-/* Render state */
 let cachedBoard = null;
 let loading = false;
 let lastFetch = 0;
 let lastError = false;
 
-/* ------------------------------------------------------------
-   Populate the cached board from local + cloud cache instantly.
-   No network. Never waits.
-   ------------------------------------------------------------ */
 function populateFromCache() {
   const cloudCache = getCachedBoard();
   cachedBoard = mergeLeaderboards(save.leaderboard, cloudCache || []);
 }
 
-/* Background refresh from the network */
 export function refreshLeaderboard(force = false) {
   if (loading) return;
   if (!force && Date.now() - lastFetch < 3000 && cachedBoard) return;
@@ -35,7 +29,6 @@ export function refreshLeaderboard(force = false) {
       cachedBoard = mergeLeaderboards(save.leaderboard, cloud);
     } else {
       lastError = true;
-      /* Keep whatever we had — don't wipe the screen */
       if (!cachedBoard) {
         cachedBoard = mergeLeaderboards(save.leaderboard, []);
       }
@@ -45,16 +38,12 @@ export function refreshLeaderboard(force = false) {
   });
 }
 
-/* Called every time the user enters the leaderboard screen */
 export function enterLeaderboard() {
-  /* Instant: show local + cached cloud */
   populateFromCache();
-  /* Then kick off a background refresh */
   refreshLeaderboard(true);
 }
 
 export function drawLeaderboardScreen() {
-  /* First render ever — populate before drawing */
   if (!cachedBoard) {
     populateFromCache();
     if (!loading) refreshLeaderboard(true);
@@ -225,25 +214,25 @@ export function drawLeaderboardScreen() {
     }
   }
 
-  /* Small loading indicator — never blocks, never says "No players"
-     while we have cached data to show */
+  /* Status below the panel */
+  const statusY = panelY + panelH + 14;
   if (loading) {
     ctx.save();
     const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 300);
     ctx.globalAlpha = 0.6 + pulse * 0.3;
     ctx.fillStyle = '#ffd24a';
     ctx.font = 'italic 11px Georgia, serif';
-    ctx.textAlign = 'right';
+    ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('refreshing…', panelX + panelW - 20, panelY + 22);
+    ctx.fillText('refreshing…', W / 2, statusY);
     ctx.restore();
   } else if (lastError) {
     ctx.save();
-    ctx.fillStyle = 'rgba(255,140,140,0.7)';
+    ctx.fillStyle = 'rgba(255,140,140,0.75)';
     ctx.font = 'italic 11px Georgia, serif';
-    ctx.textAlign = 'right';
+    ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('offline — showing cached', panelX + panelW - 20, panelY + 22);
+    ctx.fillText('couldn\u2019t reach cloud — showing saved scores', W / 2, statusY);
     ctx.restore();
   }
 
