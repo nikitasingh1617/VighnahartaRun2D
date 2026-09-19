@@ -18,9 +18,11 @@ export function aabb(a, b) {
 export function screenToCanvas(clientX, clientY) {
   const cvs = ctx.canvas;
   const r = cvs.getBoundingClientRect();
+  /* Map CSS pixel to the game's 960×540 logical space (not the internal
+     device-pixel resolution) so hit tests still line up. */
   return {
-    x: (clientX - r.left) / r.width  * cvs.width,
-    y: (clientY - r.top ) / r.height * cvs.height
+    x: (clientX - r.left) / r.width  * 960,
+    y: (clientY - r.top ) / r.height * 540
   };
 }
 

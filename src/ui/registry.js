@@ -5,6 +5,7 @@ import { SCENE_ORDER, SCENES } from '../data/scenes.js';
 import { OUTFITS } from '../data/outfits.js';
 import { initAudio, playCoin, playClick, playSceneUnlock, playRoundStart } from '../core/audio.js';
 import { syncWallet, startGameWithCloudSync, loadPlayerFromCloud } from '../cloud.js';
+import { enterLeaderboard, refreshLeaderboard } from '../screens/leaderboard.js';
 
 export function getCurrentButtons() {
   const cx = W / 2;
@@ -63,9 +64,10 @@ export function getCurrentButtons() {
     }];
   }
   if (state.mode === 'leaderboard') {
+    const bw = 240;
     return [
-      { id:'lb-reset', label:'RESET', x: 40, y: 482, w: 160, h: 44, accent:'#ff8a8a' },
-      { id:'lb-back',  label:'BACK TO MENU', x: cx-160, y: 482, w: 320, h: 44, accent:'#ffd24a' }
+      { id:'lb-refresh', label:'REFRESH',       x: cx - bw - 10, y: 482, w: bw, h: 44, accent:'#a8e6a0' },
+      { id:'lb-back',    label:'BACK TO MENU',  x: cx + 10,      y: 482, w: bw, h: 44, accent:'#ffd24a' }
     ];
   }
   if (state.mode === 'shop') {
@@ -142,16 +144,19 @@ export function handleButton(id) {
     return;
   }
   if (id === 'instructions') { state.mode = 'instructions'; return; }
-  if (id === 'leaderboard') { state.mode = 'leaderboard'; return; }
+  if (id === 'leaderboard') {
+    state.mode = 'leaderboard';
+    enterLeaderboard();
+    return;
+  }
   if (id === 'shop') { state.mode = 'shop'; return; }
   if (id === 'exit') { state.mode = 'exit'; try { window.open('', '_self').close(); } catch (e) {} return; }
   if (id === 'back' || id === 'exit-back' || id === 'scene-back' || id === 'diff-back' || id === 'shop-back') {
     state.mode = 'menu'; return;
   }
   if (id === 'lb-back') { state.mode = 'menu'; return; }
-  if (id === 'lb-reset') {
-    save.leaderboard = [];
-    persistSave();
+  if (id === 'lb-refresh') {
+    refreshLeaderboard(true);
     return;
   }
   if (id.startsWith('scene-')) {

@@ -11,20 +11,25 @@ let cachedBoard = null;
 let loading = false;
 let lastFetch = 0;
 
-export async function refreshLeaderboard() {
+export function refreshLeaderboard(force = false) {
   if (loading) return;
-  if (Date.now() - lastFetch < 5000 && cachedBoard) return;
+  if (!force && Date.now() - lastFetch < 1500 && cachedBoard) return;
+
   loading = true;
-  const cloud = await fetchLeaderboard();
-  cachedBoard = mergeLeaderboards(save.leaderboard, cloud || []);
-  lastFetch = Date.now();
-  loading = false;
+  fetchLeaderboard().then(cloud => {
+    cachedBoard = mergeLeaderboards(save.leaderboard, cloud || []);
+    lastFetch = Date.now();
+    loading = false;
+  });
+}
+
+/* Called once when the leaderboard screen is entered */
+export function enterLeaderboard() {
+  refreshLeaderboard(true);
 }
 
 export function drawLeaderboardScreen() {
-  if (!cachedBoard && !loading) {
-    refreshLeaderboard();
-  }
+  if (!cachedBoard && !loading) refreshLeaderboard(false);
 
   drawMenuBackground();
 
@@ -48,7 +53,7 @@ export function drawLeaderboardScreen() {
   ctx.fillStyle = 'rgba(255,220,150,0.72)';
   ctx.font = 'italic 12px Georgia, serif';
   ctx.fillText(
-    loading ? 'loading... (offline OK)' : 'Top 20 Bhakts across all devices',
+    loading ? 'refreshing…' : 'Top 20 Bhakts across all devices',
     W / 2, 88
   );
   ctx.restore();
@@ -112,7 +117,7 @@ export function drawLeaderboardScreen() {
     ctx.fillStyle = 'rgba(255,235,200,0.55)';
     ctx.font = 'italic 14px Georgia, serif';
     ctx.fillText(
-      loading ? 'Loading...' : 'No players yet.',
+      loading ? 'Loading…' : 'No players yet.',
       W / 2, panelY + panelH / 2
     );
     ctx.restore();

@@ -1,4 +1,4 @@
-import { ctx, W, H } from './core/canvas.js';
+import { ctx, cvs, W, H } from './core/canvas.js';
 import { state, camera, world, ui } from './core/state.js';
 import { SCENES } from './data/scenes.js';
 import { rrect } from './util/drawing.js';
@@ -27,7 +27,11 @@ import { drawTouchControls } from './ui/touchControls.js';
 import { drawInstructionsMobileScreen, drawIntroMobileScreen } from './screens/instructionsMobile.js';
 
 export function draw() {
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  /* Scale the context so all drawing in 960×540 coordinates maps to the
+     full internal resolution — that's what kills the blur. */
+  const sx = cvs.width  / W;
+  const sy = cvs.height / H;
+  ctx.setTransform(sx, 0, 0, sy, 0, 0);
   ctx.clearRect(0, 0, W, H);
 
   if (state.mode === 'menu')         { drawMenuScreen();         return; }

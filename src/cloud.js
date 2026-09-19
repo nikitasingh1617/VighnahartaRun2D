@@ -8,7 +8,7 @@ let syncInFlight = false;
 export async function fetchLeaderboard() {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
     const res = await fetch(CLOUD_URL, {
       method: 'GET',
       signal: controller.signal
@@ -54,7 +54,7 @@ export async function submitRun(run) {
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
     await fetch(CLOUD_URL, {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -77,7 +77,7 @@ export async function syncWallet() {
   syncInFlight = true;
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
     await fetch(CLOUD_URL, {
       method: 'POST',
       body: JSON.stringify({
@@ -100,7 +100,7 @@ export async function loadPlayerFromCloud(name) {
   if (!name || name.trim().length < 1) return null;
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
     const res = await fetch(CLOUD_URL, {
       method: 'GET',
       signal: controller.signal
