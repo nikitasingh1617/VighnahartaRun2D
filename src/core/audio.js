@@ -1,12 +1,46 @@
-let actx = null, noiseBuf = null, masterGain = null;
+/* ============================================================
+   AUDIO — hybrid: file-based for music + aarti, procedural SFX
+   ============================================================ */
+
+const SOUND_FILES = {
+  menuMusic: 'assets/sounds/music-menu.mp3',
+  aartiBell: 'assets/sounds/aarti-bell.mp3',
+  aartiWin:  'assets/sounds/aarti-win.mp3',
+};
+
+const files = {};     // key -> base Audio element
+const ready = {};     // key -> true once canplaythrough fired
+const failed = {};    // key -> true if load errored
 let muted = false;
 
-/* Music scheduler */
-let musicTimer = null;
-let musicStep = 0;
-let musicPlaying = false;
+/* Procedural Web Audio context (SFX) */
+let actx = null, noiseBuf = null, masterGain = null;
 
+/* Currently playing menu music */
+let currentMusic = null;
+
+/* ------------------------------------------------------------
+   File loading
+   ------------------------------------------------------------ */
+function preload(key, src) {
+  if (files[key]) return;
+  const a = new Audio();
+  a.preload = 'auto';
+  a.src = src;
+  a.addEventListener('canplaythrough', () => { ready[key] = true; }, { once: true });
+  a.addEventListener('error', () => { failed[key] = true; }, { once: true });
+  files[key] = a;
+}
+
+function loadAll() {
+  for (const k in SOUND_FILES) preload(k, SOUND_FILES[k]);
+}
+
+/* ------------------------------------------------------------
+   Init / mute
+   ------------------------------------------------------------ */
 export function initAudio() {
+  loadAll();
   if (actx) return;
   try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
   if (!actx) return;
@@ -28,15 +62,79 @@ export function toggleMute() {
   if (masterGain && actx) {
     masterGain.gain.setTargetAtTime(muted ? 0 : 0.55, actx.currentTime, 0.02);
   }
+  if (currentMusic) currentMusic.volume = muted ? 0 : 0.4;
   return muted;
 }
 
-/* ---------- Percussive & tonal SFX ---------- */
+/* ------------------------------------------------------------
+   File playback helpers
+   ------------------------------------------------------------ */
+function playFile(key, volume = 0.9) {
+  if (muted) return false;
+  if (failed[key]) return false;
+  if (!ready[key]) return false;
+  const base = files[key];
+  if (!base) return false;
+  try {
+    base.currentTime = 0;
+    base.volume = volume;
+    base.play().catch(() => {});
+    return true;
+  } catch (e) { return false; }
+}
 
+function startLoopFile(key, volume) {
+  if (failed[key]) return null;
+  const base = files[key];
+  if (!base) return null;
+  const a = base.cloneNode();
+  a.loop = true;
+  a.volume = muted ? 0 : volume;
+  a.play().catch(() => {});
+  return a;
+}
+
+/* ------------------------------------------------------------
+   Aarti bell (red light) — file first, procedural fallback
+   ------------------------------------------------------------ */
+export function playBell() {
+  if (playFile('aartiBell', 0.85)) return;
+  if (!actx) return;
+  const t = actx.currentTime;
+  [1046, 1568, 2093, 2637].forEach((f, i) => {
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(0.16 / (i + 1), t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 1.7);
+    o.connect(g); g.connect(masterGain);
+    o.start(t); o.stop(t + 1.8);
+  });
+}
+
+/* ------------------------------------------------------------
+   Victory aarti — file first, procedural fallback
+   ------------------------------------------------------------ */
+export function playVictory() {
+  if (playFile('aartiWin', 0.95)) return;
+  if (!actx) return;
+  const t = actx.currentTime;
+  [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => {
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = 'triangle'; o.frequency.value = f;
+    const st = t + i * 0.13;
+    g.gain.setValueAtTime(0.0001, st);
+    g.gain.linearRampToValueAtTime(0.2, st + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.001, st + 1.2);
+    o.connect(g); g.connect(masterGain);
+    o.start(st); o.stop(st + 1.3);
+  });
+}
+
+/* ------------------------------------------------------------
+   Procedural SFX
+   ------------------------------------------------------------ */
 export function playDrum(vol) {
   if (!actx) return;
-  if (!Number.isFinite(vol) || vol <= 0) vol = 0.2;
-
   const t = actx.currentTime;
   const o = actx.createOscillator(), g = actx.createGain();
   o.type = 'sine';
@@ -54,18 +152,6 @@ export function playDrum(vol) {
   ng.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
   n.connect(bp); bp.connect(ng); ng.connect(masterGain);
   n.start(t); n.stop(t + 0.1);
-}
-export function playBell() {
-  if (!actx) return;
-  const t = actx.currentTime;
-  [1046, 1568, 2093, 2637].forEach((f, i) => {
-    const o = actx.createOscillator(), g = actx.createGain();
-    o.type = 'sine'; o.frequency.value = f;
-    g.gain.setValueAtTime(0.16 / (i + 1), t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 1.7);
-    o.connect(g); g.connect(masterGain);
-    o.start(t); o.stop(t + 1.8);
-  });
 }
 
 export function playChime() {
@@ -111,8 +197,6 @@ export function playCoin() {
   });
 }
 
-/* ---------- UI SFX ---------- */
-
 export function playClick() {
   if (!actx) return;
   const t = actx.currentTime;
@@ -139,21 +223,6 @@ export function playHover() {
   o.start(t); o.stop(t + 0.1);
 }
 
-/* ---------- Player SFX ---------- */
-
-export function playFootstep() {
-  if (!actx) return;
-  const t = actx.currentTime;
-  const n = actx.createBufferSource(), g = actx.createGain(), lp = actx.createBiquadFilter();
-  n.buffer = noiseBuf;
-  lp.type = 'lowpass'; lp.frequency.value = 700; lp.Q.value = 0.9;
-  g.gain.setValueAtTime(0.001, t);
-  g.gain.linearRampToValueAtTime(0.09, t + 0.008);
-  g.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
-  n.connect(lp); lp.connect(g); g.connect(masterGain);
-  n.start(t); n.stop(t + 0.08);
-}
-
 export function playJump() {
   if (!actx) return;
   const t = actx.currentTime;
@@ -168,7 +237,18 @@ export function playJump() {
   o.start(t); o.stop(t + 0.18);
 }
 
-/* ---------- Round / Scene / Victory ---------- */
+export function playFootstep() {
+  if (!actx) return;
+  const t = actx.currentTime;
+  const n = actx.createBufferSource(), g = actx.createGain(), lp = actx.createBiquadFilter();
+  n.buffer = noiseBuf;
+  lp.type = 'lowpass'; lp.frequency.value = 700; lp.Q.value = 0.9;
+  g.gain.setValueAtTime(0.001, t);
+  g.gain.linearRampToValueAtTime(0.09, t + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+  n.connect(lp); lp.connect(g); g.connect(masterGain);
+  n.start(t); n.stop(t + 0.08);
+}
 
 export function playRoundStart() {
   if (!actx) return;
@@ -200,29 +280,14 @@ export function playSceneUnlock() {
   });
 }
 
-export function playVictory() {
-  if (!actx) return;
-  const t = actx.currentTime;
-  [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => {
-    const o = actx.createOscillator(), g = actx.createGain();
-    o.type = 'triangle'; o.frequency.value = f;
-    const st = t + i * 0.13;
-    g.gain.setValueAtTime(0.0001, st);
-    g.gain.linearRampToValueAtTime(0.2, st + 0.03);
-    g.gain.exponentialRampToValueAtTime(0.001, st + 1.2);
-    o.connect(g); g.connect(masterGain);
-    o.start(st); o.stop(st + 1.3);
-  });
-}
-
-/* ---------- Scene-specific ambience ---------- */
-
+/* ------------------------------------------------------------
+   Scene ambience (procedural)
+   ------------------------------------------------------------ */
 export function playAmbientTick(scene) {
   if (!actx) return;
   const t = actx.currentTime;
 
   if (scene === 'night') {
-    /* Two short cricket chirps */
     [0, 0.09].forEach(offset => {
       const o = actx.createOscillator(), g = actx.createGain();
       o.type = 'sine'; o.frequency.value = 4200 + Math.random() * 400;
@@ -234,7 +299,6 @@ export function playAmbientTick(scene) {
       o.start(st); o.stop(st + 0.06);
     });
   } else if (scene === 'day') {
-    /* A little bird chirp — quick upward glide */
     const o = actx.createOscillator(), g = actx.createGain();
     o.type = 'sine';
     o.frequency.setValueAtTime(1800, t);
@@ -246,7 +310,6 @@ export function playAmbientTick(scene) {
     o.connect(g); g.connect(masterGain);
     o.start(t); o.stop(t + 0.2);
   } else if (scene === 'evening') {
-    /* Distant temple bell tinkle */
     [1568, 2093, 2637].forEach((f, i) => {
       const o = actx.createOscillator(), g = actx.createGain();
       o.type = 'sine'; o.frequency.value = f;
@@ -260,63 +323,21 @@ export function playAmbientTick(scene) {
   }
 }
 
-/* ---------- Background music ---------- */
-
-/* A gentle pentatonic-rāga melody: C D Eb G Ab C' Ab G Eb D C */
-const MELODY = [
-  523, 587, 622, 784, 831, 1046,
-  831, 784, 622, 587, 523, 466,
-  523, 587, 622, 784, 831, 1046,
-  1046, 831, 784, 622, 587, 523
-];
-const BASS = [
-  131, 131, 175, 175,
-  131, 131, 175, 175,
-  131, 131, 175, 175,
-  131, 131, 175, 175,
-  131, 131, 175, 175,
-  131, 131, 175, 175
-];
-
-function playMusicNote(freq, dur, vol) {
-  if (!Number.isFinite(vol) || vol <= 0) return;
-  if (!Number.isFinite(freq) || freq <= 0) return;
-  if (!Number.isFinite(dur) || dur <= 0) dur = 0.5;
-  const t = actx.currentTime;
-  const o = actx.createOscillator();
-  const o2 = actx.createOscillator();
-  const g = actx.createGain();
-  o.type = 'sine';  o.frequency.value = freq;
-  o2.type = 'triangle'; o2.frequency.value = freq * 1.004;
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(vol, t + 0.06);
-  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-  o.connect(g); o2.connect(g);
-  g.connect(masterGain);
-  o.start(t); o.stop(t + dur + 0.1);
-  o2.start(t); o2.stop(t + dur + 0.1);
-}
-
+/* ------------------------------------------------------------
+   Menu music — file-based loop
+   ------------------------------------------------------------ */
 export function startMenuMusic() {
   initAudio();
-  if (!actx || musicPlaying) return;
-  musicPlaying = true;
-  musicStep = 0;
-  const beat = 640;
-
-  musicTimer = setInterval(() => {
-    if (!musicPlaying || muted) return;
-    const m = MELODY[musicStep % MELODY.length];
-    const b = BASS[musicStep % BASS.length];
-    playMusicNote(m, 0.7, 0.06);
-    if (musicStep % 2 === 0) playMusicNote(b, 1.1, 0.09);
-    musicStep++;
-  }, beat);
+  if (currentMusic) return;
+  if (failed.menuMusic) return;
+  const a = startLoopFile('menuMusic', 0.4);
+  if (a) currentMusic = a;
 }
 
 export function stopMenuMusic() {
-  musicPlaying = false;
-  if (musicTimer) { clearInterval(musicTimer); musicTimer = null; }
+  if (!currentMusic) return;
+  try { currentMusic.pause(); } catch (e) {}
+  currentMusic = null;
 }
 
-export function isMusicPlaying() { return musicPlaying; }
+export function isMusicPlaying() { return !!currentMusic; }

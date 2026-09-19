@@ -126,8 +126,10 @@ export function hitTestButton(mx, my) {
 
 export function handleButton(id) {
   playClick();
+
   if (id === 'play') {
     initAudio();
+    playClick();
     state.mode = 'intro';
     state.introT = 0;
     state.instructionsScrollY = 0;

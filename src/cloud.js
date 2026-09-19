@@ -125,15 +125,21 @@ export async function loadPlayerFromCloud(name) {
   }
 }
 
-export async function startGameWithCloudSync() {
-  const cloud = await loadPlayerFromCloud(save.playerName);
-  if (cloud) {
-    /* Cloud wallet is authoritative — it always wins */
-    save.coins = cloud.coinsHeld;
-    persistSave();
-  }
-  const m = await import('./gameplay/rounds.js');
-  m.startRound(1);
+/* Non-blocking: starts the round immediately, syncs wallet in background. */
+export function startGameWithCloudSync() {
+  requestAnimationFrame(() => {
+    import('./gameplay/rounds.js').then(m => {
+      m.startRound(1);
+    });
+  });
+
+  loadPlayerFromCloud(save.playerName).then(cloud => {
+    if (!cloud) return;
+    if (cloud.coinsHeld > save.coins) {
+      save.coins = cloud.coinsHeld;
+      persistSave();
+    }
+  });
 }
 
 export function mergeLeaderboards(localBoard, cloudBoard) {
