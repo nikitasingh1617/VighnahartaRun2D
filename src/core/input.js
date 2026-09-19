@@ -1,6 +1,6 @@
 ﻿import { state, keys, player, ui } from './state.js';
 import { initAudio } from './audio.js';
-import { save, persistSave } from './save.js';
+import { save, persistSave } from './core/save.js';
 import { screenToCanvas } from '../util/drawing.js';
 import { hitTestButton, handleButton } from '../ui/registry.js';
 import { processCheatKey } from '../cheats.js';
@@ -32,7 +32,6 @@ function requestFullscreen() {
     return;
   }
 
-  /* Throttle: at most one attempt every 800 ms */
   const now = performance.now();
   if (now - lastFsTry < 800) return;
   lastFsTry = now;
@@ -55,14 +54,12 @@ function requestFullscreen() {
 }
 
 export function installInput() {
-  /* Track fullscreen status */
   const onFsChange = () => {
     fullscreenOK = !!(document.fullscreenElement || document.webkitFullscreenElement);
   };
   document.addEventListener('fullscreenchange', onFsChange);
   document.addEventListener('webkitfullscreenchange', onFsChange);
 
-  /* ---- First tap anywhere â†’ fullscreen ---- */
   const firstTap = e => {
     if (!ui.hasTouch) return;
     requestFullscreen();
@@ -97,7 +94,7 @@ export function installInput() {
   }, { passive: false });
   cvs.addEventListener('touchend', () => { touchStartY = null; }, { passive: true });
 
-  /* ---- Keyboard ---- */
+  /* ---- Keyboard (M is no longer bound — mute is a UI button) ---- */
   window.addEventListener('keydown', e => {
     const k = e.key;
     if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(k)) e.preventDefault();
@@ -107,15 +104,6 @@ export function installInput() {
     initAudio();
 
     if (k.length === 1 && /[a-zA-Z]/.test(k)) processCheatKey(k);
-
-    if (k === 'm' || k === 'M') {
-      import('./audio.js').then(a => {
-        const nowMuted = a.toggleMute();
-        state.muteToastMsg = nowMuted ? 'SOUND OFF' : 'SOUND ON';
-        state.muteToast = 1.6;
-      });
-      return;
-    }
 
     if (state.mode === 'nameEntry') {
       if (k === 'Backspace') {
@@ -219,8 +207,6 @@ export function installInput() {
   cvs.addEventListener('pointerdown', e => {
     initAudio();
 
-    /* Retry fullscreen on every tap until it succeeds.
-       Fires synchronously â€” preserves the user gesture. */
     if (ui.hasTouch && !fullscreenOK) {
       requestFullscreen();
       state.fullscreenToast = 2.5;
@@ -228,7 +214,13 @@ export function installInput() {
 
     const p = screenToCanvas(e.clientX, e.clientY);
 
-    /* Name-entry keyboard */
+    /* Mute button is checked first so it wins over any overlapping touch control */
+    const btn = hitTestButton(p.x, p.y);
+    if (btn) {
+      handleButton(btn.id);
+      return;
+    }
+
     if (state.mode === 'nameEntry') {
       const keyHit = hitTestKeyboard(p.x, p.y);
       if (keyHit) {
@@ -237,7 +229,6 @@ export function installInput() {
       }
     }
 
-    /* Gameplay touch controls */
     if (state.mode === 'playing') {
       const touchBtn = hitTestTouchButton(p.x, p.y);
       if (touchBtn) {
@@ -246,16 +237,8 @@ export function installInput() {
         pressTouchButton(touchBtn, e.pointerId);
         return;
       }
+      player.interactRequested = true;
     }
-
-    /* UI buttons */
-    const btn = hitTestButton(p.x, p.y);
-    if (btn) {
-      handleButton(btn.id);
-      return;
-    }
-
-    if (state.mode === 'playing') player.interactRequested = true;
   });
 
   cvs.addEventListener('pointerup', e => {

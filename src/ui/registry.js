@@ -3,11 +3,55 @@ import { state } from '../core/state.js';
 import { save, persistSave } from '../core/save.js';
 import { SCENE_ORDER, SCENES } from '../data/scenes.js';
 import { OUTFITS } from '../data/outfits.js';
-import { initAudio, playCoin, playClick, playSceneUnlock, playRoundStart } from '../core/audio.js';
+import { initAudio, playCoin, playClick, playSceneUnlock, playRoundStart, toggleMute } from '../core/audio.js';
 import { syncWallet, startGameWithCloudSync, loadPlayerFromCloud } from '../cloud.js';
 import { enterLeaderboard, refreshLeaderboard } from '../screens/leaderboard.js';
 
-export function getCurrentButtons() {
+/* Mute button dimensions and per-mode position */
+const MUTE_W = 36;
+const MUTE_H = 36;
+
+function getMutePosition() {
+  /* Modes with a coin pill at top-right → sit just left of it */
+  if (state.mode === 'menu' ||
+      state.mode === 'sceneSelect' ||
+      state.mode === 'diffSelect' ||
+      state.mode === 'leaderboard' ||
+      state.mode === 'shop') {
+    return { x: W - 200, y: 22 };
+  }
+
+  /* Gameplay: sit left of the modak counter */
+  if (state.mode === 'playing' || state.mode === 'paused' || state.mode === 'caught') {
+    return { x: 700, y: 26 };
+  }
+
+  /* Instructions, intro, name entry, exit → top-right corner */
+  if (state.mode === 'instructions' ||
+      state.mode === 'intro' ||
+      state.mode === 'nameEntry' ||
+      state.mode === 'exit') {
+    return { x: W - 60, y: 22 };
+  }
+
+  /* Win screen: hidden (already busy) */
+  return null;
+}
+
+function getMuteButton() {
+  const pos = getMutePosition();
+  if (!pos) return null;
+  return {
+    id: 'mute-toggle',
+    muteButton: true,
+    x: pos.x,
+    y: pos.y,
+    w: MUTE_W,
+    h: MUTE_H
+  };
+}
+
+function getBaseButtons() {
   const cx = W / 2;
 
   if (state.mode === 'menu') {
@@ -66,8 +110,8 @@ export function getCurrentButtons() {
   if (state.mode === 'leaderboard') {
     const bw = 240;
     return [
-      { id:'lb-refresh', label:'REFRESH',       x: cx - bw - 10, y: 482, w: bw, h: 44, accent:'#a8e6a0' },
-      { id:'lb-back',    label:'BACK TO MENU',  x: cx + 10,      y: 482, w: bw, h: 44, accent:'#ffd24a' }
+      { id:'lb-refresh', label:'REFRESH',      x: cx - bw - 10, y: 482, w: bw, h: 44, accent:'#a8e6a0' },
+      { id:'lb-back',    label:'BACK TO MENU', x: cx + 10,      y: 482, w: bw, h: 44, accent:'#ffd24a' }
     ];
   }
   if (state.mode === 'shop') {
@@ -118,6 +162,13 @@ export function getCurrentButtons() {
   return [];
 }
 
+export function getCurrentButtons() {
+  const list = getBaseButtons();
+  const mute = getMuteButton();
+  if (mute) list.push(mute);
+  return list;
+}
+
 export function hitTestButton(mx, my) {
   for (const b of getCurrentButtons()) {
     if (b.disabled) continue;
@@ -128,6 +179,13 @@ export function hitTestButton(mx, my) {
 
 export function handleButton(id) {
   playClick();
+
+  if (id === 'mute-toggle') {
+    const nowMuted = toggleMute();
+    state.muteToastMsg = nowMuted ? 'SOUND OFF' : 'SOUND ON';
+    state.muteToast = 1.6;
+    return;
+  }
 
   if (id === 'play') {
     initAudio();

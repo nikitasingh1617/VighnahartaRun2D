@@ -1,5 +1,6 @@
 /* ============================================================
    AUDIO — hybrid: file-based for music + aarti, procedural SFX
+   Menu music: MP3 if available, procedural melody as fallback.
    ============================================================ */
 
 const SOUND_FILES = {
@@ -13,11 +14,16 @@ const ready = {};     // key -> true once canplaythrough fired
 const failed = {};    // key -> true if load errored
 let muted = false;
 
-/* Procedural Web Audio context (SFX) */
+/* Procedural Web Audio context (SFX + fallback music) */
 let actx = null, noiseBuf = null, masterGain = null;
 
-/* Currently playing menu music */
+/* Currently playing menu music (MP3 element or null if procedural) */
 let currentMusic = null;
+let usingProceduralMusic = false;
+
+/* Procedural music scheduler */
+let musicTimer = null;
+let musicStep = 0;
 
 /* ------------------------------------------------------------
    File loading
@@ -324,20 +330,109 @@ export function playAmbientTick(scene) {
 }
 
 /* ------------------------------------------------------------
-   Menu music — file-based loop
+   Procedural menu music (fallback)
+   A gentle pentatonic loop: C  D  Eb  G  Ab  C'  Ab  G  Eb  D  C
+   ------------------------------------------------------------ */
+const MELODY = [
+  523, 587, 622, 784, 831, 1046,
+  831, 784, 622, 587, 523, 466,
+  523, 587, 622, 784, 831, 1046,
+  1046, 831, 784, 622, 587, 523
+];
+const BASS = [
+  131, 131, 175, 175,
+  131, 131, 175, 175,
+  131, 131, 175, 175,
+  131, 131, 175, 175,
+  131, 131, 175, 175,
+  131, 131, 175, 175
+];
+
+function playSynthNote(freq, dur, vol) {
+  if (!actx || muted) return;
+  const t = actx.currentTime;
+  const o = actx.createOscillator(), o2 = actx.createOscillator(), g = actx.createGain();
+  o.type = 'sine'; o.frequency.value = freq;
+  o2.type = 'triangle'; o2.frequency.value = freq * 1.004;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(vol, t + 0.06);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g); o2.connect(g);
+  g.connect(masterGain);
+  o.start(t); o.stop(t + dur + 0.1);
+  o2.start(t); o2.stop(t + dur + 0.1);
+}
+
+function startProceduralMusic() {
+  if (!actx) return;
+  if (musicTimer) return;
+  usingProceduralMusic = true;
+  musicStep = 0;
+  const beat = 640;
+  musicTimer = setInterval(() => {
+    if (!usingProceduralMusic || muted) return;
+    const m = MELODY[musicStep % MELODY.length];
+    const b = BASS[musicStep % BASS.length];
+    playSynthNote(m, 0.7, 0.055);
+    if (musicStep % 2 === 0) playSynthNote(b, 1.1, 0.08);
+    musicStep++;
+  }, beat);
+}
+
+function stopProceduralMusic() {
+  usingProceduralMusic = false;
+  if (musicTimer) { clearInterval(musicTimer); musicTimer = null; }
+}
+
+/* ------------------------------------------------------------
+   Menu music — MP3 if ready, otherwise procedural fallback
    ------------------------------------------------------------ */
 export function startMenuMusic() {
   initAudio();
+
+  /* Already playing? Nothing to do. */
   if (currentMusic) return;
-  if (failed.menuMusic) return;
-  const a = startLoopFile('menuMusic', 0.4);
-  if (a) currentMusic = a;
+  if (usingProceduralMusic) return;
+
+  /* Try the MP3 first */
+  if (ready.menuMusic && !failed.menuMusic) {
+    const a = startLoopFile('menuMusic', 0.4);
+    if (a) { currentMusic = a; return; }
+  }
+
+  /* Fallback: procedural melody.
+     If the MP3 is still loading, wait up to 2s for it, then fall back. */
+  if (!failed.menuMusic && !ready.menuMusic) {
+    let fellBack = false;
+    const attemptFallback = () => {
+      if (fellBack) return;
+      if (currentMusic) return;           // MP3 came online in time
+      if (usingProceduralMusic) return;
+      fellBack = true;
+      startProceduralMusic();
+    };
+    setTimeout(() => {
+      if (ready.menuMusic && !currentMusic && !usingProceduralMusic) {
+        const a = startLoopFile('menuMusic', 0.4);
+        if (a) { currentMusic = a; return; }
+      }
+      attemptFallback();
+    }, 2000);
+    return;
+  }
+
+  /* MP3 errored — go procedural immediately */
+  startProceduralMusic();
 }
 
 export function stopMenuMusic() {
-  if (!currentMusic) return;
-  try { currentMusic.pause(); } catch (e) {}
-  currentMusic = null;
+  if (currentMusic) {
+    try { currentMusic.pause(); } catch (e) {}
+    currentMusic = null;
+  }
+  stopProceduralMusic();
 }
 
-export function isMusicPlaying() { return !!currentMusic; }
+export function isMusicPlaying() {
+  return !!currentMusic || usingProceduralMusic;
+}
