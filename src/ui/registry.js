@@ -4,6 +4,8 @@ import { save, persistSave } from '../core/save.js';
 import { SCENE_ORDER, SCENES } from '../data/scenes.js';
 import { OUTFITS } from '../data/outfits.js';
 import { syncWallet } from '../cloud.js';
+import { startGameWithCloudSync } from '../cloud.js';
+import { loadPlayerFromCloud, syncWallet } from '../cloud.js';
 import { initAudio, playCoin, playClick, playSceneUnlock, playRoundStart } from '../core/audio.js';
 
 export function getCurrentButtons() {
@@ -160,13 +162,13 @@ export function handleButton(id) {
     state.mode = 'nameEntry';
     return;
   }
-  if (id === 'name-go') {
+    if (id === 'name-go') {
     if (save.playerName.trim().length < 1) return;
     initAudio();
     save.playerName = save.playerName.trim();
     persistSave();
     state.delivered = 0;
-    import('../gameplay/rounds.js').then(m => m.startRound(1));
+    startGameWithCloudSync();
     return;
   }
     if (id.startsWith('outfit-')) {
@@ -200,3 +202,4 @@ export function handleButton(id) {
   }
   if (id === 'win-menu' || id === 'caught-menu') { state.mode = 'menu'; return; }
 }
+

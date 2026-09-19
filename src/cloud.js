@@ -114,3 +114,38 @@ export function mergeLeaderboards(localBoard, cloudBoard) {
     .sort((a, b) => (b.score || 0) - (a.score || 0))
     .slice(0, 20);
 }
+
+/* Pull the wallet and best stats for this player from the cloud.
+   Called once on name entry, before the first round starts. */
+export async function loadPlayerFromCloud(name) {
+  if (!name || name.trim().length < 1) return null;
+  try {
+    const res = await fetch(CLOUD_URL, { method: 'GET' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!Array.isArray(data)) return null;
+    const me = data.find(p => (p.name || '').trim().toLowerCase() === name.trim().toLowerCase());
+    if (!me) return null;
+    return {
+      coinsHeld: Number(me.coinsHeld) || 0,
+      bestScore: Number(me.bestScore) || 0,
+      bestTime: Number(me.bestTime) || 0,
+      bestRounds: Number(me.bestRounds) || 0,
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+/* in cloud.js */
+import { save, persistSave } from './core/save.js';
+
+export async function startGameWithCloudSync() {
+  const cloud = await loadPlayerFromCloud(save.playerName);
+  if (cloud) {
+    save.coins = cloud.coinsHeld;
+    persistSave();
+  }
+  const m = await import('../gameplay/rounds.js');
+  m.startRound(1);
+}

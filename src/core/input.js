@@ -5,6 +5,7 @@ import { screenToCanvas } from '../util/drawing.js';
 import { hitTestButton, handleButton } from '../ui/registry.js';
 import { processCheatKey } from '../cheats.js';
 import { cvs, W } from './canvas.js';
+import { startGameWithCloudSync } from '../cloud.js';
 import {
   hitTestTouchButton,
   pressTouchButton,
@@ -90,12 +91,12 @@ export function installInput() {
         save.playerName = (save.playerName || '').slice(0, -1);
         persistSave(); return;
       }
-      if (k === 'Enter') {
+            if (k === 'Enter') {
         if (save.playerName.trim().length >= 1) {
           save.playerName = save.playerName.trim();
           persistSave();
           state.delivered = 0;
-          import('../gameplay/rounds.js').then(m => m.startRound(1));
+          startGameWithCloudSync();
         }
         return;
       }
