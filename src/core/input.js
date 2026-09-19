@@ -1,6 +1,6 @@
 ﻿import { state, keys, player, ui } from './state.js';
 import { initAudio } from './audio.js';
-import { save, persistSave } from './save.js';
+import { save, persistSave } from './core/save.js';
 import { screenToCanvas } from '../util/drawing.js';
 import { hitTestButton, handleButton } from '../ui/registry.js';
 import { processCheatKey } from '../cheats.js';
@@ -94,7 +94,7 @@ export function installInput() {
   }, { passive: false });
   cvs.addEventListener('touchend', () => { touchStartY = null; }, { passive: true });
 
-  /* ---- Keyboard (M is no longer bound — mute is a UI button) ---- */
+  /* ---- Keyboard ---- */
   window.addEventListener('keydown', e => {
     const k = e.key;
     if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(k)) e.preventDefault();
@@ -214,13 +214,14 @@ export function installInput() {
 
     const p = screenToCanvas(e.clientX, e.clientY);
 
-    /* Mute button is checked first so it wins over any overlapping touch control */
+    /* UI buttons first (mute, back, etc.) */
     const btn = hitTestButton(p.x, p.y);
     if (btn) {
       handleButton(btn.id);
       return;
     }
 
+    /* Virtual keyboard */
     if (state.mode === 'nameEntry') {
       const keyHit = hitTestKeyboard(p.x, p.y);
       if (keyHit) {
@@ -229,14 +230,19 @@ export function installInput() {
       }
     }
 
+    /* Gameplay */
     if (state.mode === 'playing') {
-      const touchBtn = hitTestTouchButton(p.x, p.y);
-      if (touchBtn) {
-        e.preventDefault();
-        try { cvs.setPointerCapture(e.pointerId); } catch (err) {}
-        pressTouchButton(touchBtn, e.pointerId);
+      /* On touch, ONLY the E button triggers interact */
+      if (ui.hasTouch) {
+        const touchBtn = hitTestTouchButton(p.x, p.y);
+        if (touchBtn) {
+          e.preventDefault();
+          try { cvs.setPointerCapture(e.pointerId); } catch (err) {}
+          pressTouchButton(touchBtn, e.pointerId);
+        }
         return;
       }
+      /* On desktop, any click acts as interact */
       player.interactRequested = true;
     }
   });

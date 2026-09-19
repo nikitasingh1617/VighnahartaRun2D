@@ -1,9 +1,8 @@
 import { ctx, W, H } from '../core/canvas.js';
-import { state, ui, keys } from '../core/state.js';
+import { state, ui, keys, player } from '../core/state.js';
 
 const BTN_R = 28;
 
-/* cy 465 instead of 488 — higher up for easier thumb reach */
 export const TOUCH_BUTTONS = [
   { id: 'left',     cx: 58,  cy: 465, r: BTN_R, key: 'ArrowLeft',  label: '◀' },
   { id: 'right',    cx: 122, cy: 465, r: BTN_R, key: 'ArrowRight', label: '▶' },
@@ -48,7 +47,12 @@ export function pressTouchButton(btn, pointerId) {
   if (btn.key === 'ArrowUp')  { keys['w'] = true; keys[' '] = true; }
   if (btn.key === 'ArrowDown')  keys['s'] = true;
   if (btn.key === 'Alt')        keys['alt'] = true;
-  if (btn.key === 'e')          keys['E'] = true;
+
+  /* E button → fire the one-shot interact flag the game actually reads */
+  if (btn.key === 'e') {
+    keys['E'] = true;
+    player.interactRequested = true;
+  }
 
   ui.activePointers.set(pointerId, btn);
   ui.touchPressed[btn.id] = true;
@@ -100,23 +104,23 @@ function drawTouchBtn(btn, pressed) {
   }
 
   ctx.fillStyle = pressed
-    ? 'rgba(255,210,74,0.48)'
-    : 'rgba(15,8,20,0.55)';
+    ? 'rgba(255,210,74,0.72)'
+    : 'rgba(255,250,240,0.85)';
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
 
   ctx.strokeStyle = pressed
-    ? 'rgba(255,240,180,1)'
-    : 'rgba(255,210,74,0.62)';
+    ? 'rgba(120,60,10,1)'
+    : 'rgba(232,160,32,0.85)';
   ctx.lineWidth = 2;
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
 
   ctx.strokeStyle = pressed
-    ? 'rgba(255,255,255,0.5)'
-    : 'rgba(255,255,255,0.10)';
+    ? 'rgba(255,255,255,0.7)'
+    : 'rgba(255,255,255,0.55)';
   ctx.lineWidth = 1;
   ctx.beginPath(); ctx.arc(cx, cy, r - 4, 0, Math.PI * 2); ctx.stroke();
 
-  ctx.fillStyle = pressed ? '#fff8d0' : 'rgba(255,240,200,0.92)';
+  ctx.fillStyle = pressed ? '#7a3a00' : '#a05808';
   ctx.font = isAlt
     ? 'bold 15px system-ui, sans-serif'
     : (btn.id === 'pause' ? 'bold 18px system-ui, sans-serif' : 'bold 22px system-ui, sans-serif');
