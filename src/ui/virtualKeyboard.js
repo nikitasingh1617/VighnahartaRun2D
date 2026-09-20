@@ -1,6 +1,5 @@
 import { ctx, W } from '../core/canvas.js';
-import { save, persistSave } from '../core/save.js';
-import { ui } from '../core/state.js';
+import { ui, state } from '../core/state.js';
 import { rrect } from '../util/drawing.js';
 
 /* ---- Layout constants ---- */
@@ -81,8 +80,7 @@ export function pressKeyboardKey(key) {
 
   /* Backspace */
   if (key === 'BKSP') {
-    save.playerName = (save.playerName || '').slice(0, -1);
-    persistSave();
+    state.nameDraft = (state.nameDraft || '').slice(0, -1);
     pressedKey = key;
     setTimeout(() => { if (pressedKey === key) pressedKey = null; }, 120);
     return;
@@ -90,20 +88,18 @@ export function pressKeyboardKey(key) {
 
   /* Space */
   if (key === 'SPACE') {
-    if ((save.playerName || '').length < 14) {
-      save.playerName = (save.playerName || '') + ' ';
-      persistSave();
-    }
+    if ((state.nameDraft || '').length < 14) {
+      state.nameDraft = (state.nameDraft || '') + ' ';
+      }
     pressedKey = key;
     setTimeout(() => { if (pressedKey === key) pressedKey = null; }, 120);
     return;
   }
 
   /* Letter */
-  if ((save.playerName || '').length < 14) {
+  if ((state.nameDraft || '').length < 14) {
     const ch = capsOn ? key.toUpperCase() : key.toLowerCase();
-    save.playerName = (save.playerName || '') + ch;
-    persistSave();
+    state.nameDraft = (state.nameDraft || '') + ch;
   }
   pressedKey = key;
   setTimeout(() => { if (pressedKey === key) pressedKey = null; }, 120);

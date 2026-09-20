@@ -20,23 +20,7 @@ export function drawMenuScreen() {
   /* Coin pill in top-right corner */
   drawCoinPill(W - 90, 40, save.coins);
 
-  /* Player name pill in top-left */
-  if (save.playerName) {
-  const pw = 190, ph = 30, px = 20, py = 25;
-  ctx.save();
-  ctx.fillStyle = 'rgba(20,10,6,0.85)';
-  rrect(px, py, pw, ph, 15); ctx.fill();
-  ctx.strokeStyle = 'rgba(255,210,74,0.6)'; ctx.lineWidth = 1.5;
-  rrect(px, py, pw, ph, 15); ctx.stroke();
-  ctx.fillStyle = 'rgba(255,210,120,0.85)';
-  ctx.font = 'bold 11px system-ui, sans-serif';
-  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ctx.fillText('BHAKT', px + 14, py + ph / 2 + 1);
-  ctx.fillStyle = '#ffd24a';
-  ctx.font = 'bold 14px Georgia, serif';
-  ctx.fillText(save.playerName, px + 66, py + ph / 2 + 1);
-  ctx.restore();
-}
+  /* Player icon + name pill (top-left) is drawn by the 'user-open' button */
 
   drawButtons();
 

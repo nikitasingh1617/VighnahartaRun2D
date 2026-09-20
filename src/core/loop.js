@@ -53,7 +53,9 @@ function update(dt) {
   const wantsMusic = state.mode === 'menu' || state.mode === 'instructions' ||
                      state.mode === 'intro' || state.mode === 'sceneSelect' ||
                      state.mode === 'diffSelect' || state.mode === 'nameEntry' ||
-                     state.mode === 'leaderboard' || state.mode === 'shop';
+                     state.mode === 'tutorial' ||
+                     state.mode === 'leaderboard' || state.mode === 'shop' ||
+                     state.mode === 'user';
   if (wantsMusic) startMenuMusic(); else stopMenuMusic();
 
   if (state.mode === 'playing') {

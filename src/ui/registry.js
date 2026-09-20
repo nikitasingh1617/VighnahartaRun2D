@@ -6,6 +6,8 @@ import { OUTFITS } from '../data/outfits.js';
 import { initAudio, playCoin, playClick, playSceneUnlock, playRoundStart, toggleMute } from '../core/audio.js';
 import { syncWallet, startGameWithCloudSync, loadPlayerFromCloud } from '../cloud.js';
 import { enterLeaderboard, refreshLeaderboard } from '../screens/leaderboard.js';
+import { enterUserPage, refreshUserData } from '../screens/user.js';
+import { TUTORIAL_PAGES } from '../core/config.js';
 
 /* Mute button dimensions */
 const MUTE_W = 36;
@@ -16,6 +18,7 @@ function getMutePosition() {
       state.mode === 'sceneSelect' ||
       state.mode === 'diffSelect' ||
       state.mode === 'leaderboard' ||
+      state.mode === 'user' ||
       state.mode === 'shop') {
     return { x: W - 200, y: 22 };
   }
@@ -25,6 +28,7 @@ function getMutePosition() {
   if (state.mode === 'instructions' ||
       state.mode === 'intro' ||
       state.mode === 'nameEntry' ||
+      state.mode === 'tutorial' ||
       state.mode === 'exit') {
     return { x: W - 60, y: 22 };
   }
@@ -47,7 +51,7 @@ function getMuteButton() {
    Every screen except the main menu gets a BACK button in the
    top-left corner. goBack() steps to the PREVIOUS page:
 
-     menu -> intro -> sceneSelect -> diffSelect -> nameEntry -> game
+     menu -> sceneSelect -> diffSelect -> (nameEntry, first time only) -> game
 
    In-game, Back opens the pause menu (Resume / Restart / Main Menu),
    and Back from the pause menu returns to the game.
@@ -62,7 +66,9 @@ function getBackPosition() {
     case 'sceneSelect':
     case 'diffSelect':
     case 'nameEntry':
+    case 'tutorial':
     case 'leaderboard':
+    case 'user':
     case 'shop':
     case 'exit':
       return { x: 16, y: 12 };
@@ -93,11 +99,7 @@ export function goBack() {
       state.mode = 'menu';
       break;
     case 'sceneSelect':
-      /* previous page = the "read first" intro; don't make them wait again */
-      state.instructionsScrollY = 0;
-      state.instructionsScrollTarget = 0;
-      state.introT = Math.max(state.introT, 3);
-      state.mode = 'intro';
+      state.mode = 'menu';
       break;
     case 'diffSelect':
       state.mode = 'sceneSelect';
@@ -105,7 +107,12 @@ export function goBack() {
     case 'nameEntry':
       state.mode = 'diffSelect';
       break;
+    case 'tutorial':
+      if (state.tutorialPage > 0) state.tutorialPage--;
+      else state.mode = 'diffSelect';
+      break;
     case 'leaderboard':
+    case 'user':
     case 'shop':
     case 'exit':
     case 'caught':
@@ -153,6 +160,9 @@ function getBaseButtons() {
       { id:'leaderboard',  label:'LEADERBOARD',  x: cx-bw/2, y: 352, w: bw, h: bh, accent:'#ffb84d' },
       { id:'shop',         label:'OUTFIT SHOP',  x: cx-bw/2, y: 402, w: bw, h: bh, accent:'#c8a8ff' },
       { id:'exit',         label:'EXIT',         x: cx-bw/2, y: 452, w: bw, h: bh, accent:'#ff8a8a' },
+      /* User icon (+ name pill) in the top-left corner */
+      { id:'user-open', userButton:true, x: 20, y: 20,
+        w: save.playerName && save.playerName.trim() ? 236 : 40, h: 40 },
     ];
   }
   if (state.mode === 'instructions') {
@@ -188,11 +198,22 @@ function getBaseButtons() {
       { id:'diff-back',   label:'BACK', x: cx-110, y:462, w:220, h:42, accent:'#ffd24a' }
     ];
   }
+  if (state.mode === 'tutorial') {
+    const last = state.tutorialPage >= TUTORIAL_PAGES - 1;
+    const btns = [{
+      id:'tut-next',
+      label: last ? 'START GAME' : 'NEXT',
+      x: cx - 150, y: 474, w: 300, h: 44,
+      accent: last ? '#a8e6a0' : '#ffd24a'
+    }];
+    if (!last) btns.push({ id:'tut-skip', label:'SKIP', x: W - 150, y: 480, w: 110, h: 32, accent:'#8a7a55' });
+    return btns;
+  }
   if (state.mode === 'nameEntry') {
-    const ready = save.playerName.trim().length >= 1;
+    const ready = (state.nameDraft || '').trim().length >= 1;
     return [{
       id:'name-go',
-      label: ready ? 'LETS GO' : 'TYPE A NAME TO BEGIN',
+      label: ready ? 'CONFIRM NAME & PLAY' : 'TYPE A NAME TO BEGIN',
       x: cx - 180, y: 434, w: 360, h: 44,
       accent: ready ? '#a8e6a0' : '#8a7a55',
       disabled: !ready
@@ -203,6 +224,16 @@ function getBaseButtons() {
     return [
       { id:'lb-refresh', label:'REFRESH',      x: cx - bw - 10, y: 482, w: bw, h: 44, accent:'#a8e6a0' },
       { id:'lb-back',    label:'BACK TO MENU', x: cx + 10,      y: 482, w: bw, h: 44, accent:'#ffd24a' }
+    ];
+  }
+  if (state.mode === 'user') {
+    const bw = 240;
+    const hasName = save.playerName && save.playerName.trim().length > 0;
+    return [
+      hasName
+        ? { id:'user-refresh', label:'REFRESH', x: cx - bw - 10, y: 482, w: bw, h: 44, accent:'#a8e6a0' }
+        : { id:'play',         label:'PLAY',    x: cx - bw - 10, y: 482, w: bw, h: 44, accent:'#a8e6a0' },
+      { id:'user-back', label:'BACK TO MENU', x: cx + 10, y: 482, w: bw, h: 44, accent:'#ffd24a' }
     ];
   }
   if (state.mode === 'shop') {
@@ -273,6 +304,61 @@ export function hitTestButton(mx, my) {
   return null;
 }
 
+/* PLAY: go straight to scene select (the INSTRUCTIONS page covers the how-to) */
+export function startPlayFlow() {
+  initAudio();
+  state.mode = 'sceneSelect';
+}
+
+/* Difficulty picked: ask for a name only if the player has never set one */
+export function chooseDifficulty(diff) {
+  initAudio();
+  state.difficulty = diff;
+  if (save.nameLocked && save.playerName.trim()) {
+    launchGame();
+  } else {
+    state.nameDraft = '';
+    state.mode = 'nameEntry';
+  }
+}
+
+/* Name confirmed: lock it permanently, then start */
+export function confirmName() {
+  const name = (state.nameDraft || '').trim();
+  if (name.length < 1) return;
+  initAudio();
+  save.playerName = name;
+  save.nameLocked = true;
+  persistSave();
+  launchGame();
+}
+
+/* First run ever → the tutorial comes first, then the game starts */
+function launchGame() {
+  if (!save.tutorialDone) {
+    state.tutorialPage = 0;
+    state.mode = 'tutorial';
+    return;
+  }
+  beginRun();
+}
+
+function beginRun() {
+  state.delivered = 0;
+  startGameWithCloudSync();
+}
+
+export function nextTutorialPage() {
+  if (state.tutorialPage < TUTORIAL_PAGES - 1) state.tutorialPage++;
+  else finishTutorial();
+}
+
+export function finishTutorial() {
+  save.tutorialDone = true;
+  persistSave();
+  beginRun();
+}
+
 export function handleButton(id) {
   playClick();
 
@@ -308,11 +394,7 @@ export function handleButton(id) {
   }
 
   if (id === 'play') {
-    initAudio();
-    playClick();
-    state.mode = 'intro';
-    state.introT = 0;
-    state.instructionsScrollY = 0;
+    startPlayFlow();
     return;
   }
   if (id === 'intro-continue') {
@@ -334,6 +416,9 @@ export function handleButton(id) {
     state.mode = 'menu'; return;
   }
   if (id === 'lb-back') { state.mode = 'menu'; return; }
+  if (id === 'user-open') { state.mode = 'user'; enterUserPage(); return; }
+  if (id === 'user-refresh') { refreshUserData(true); return; }
+  if (id === 'user-back') { state.mode = 'menu'; return; }
   if (id === 'lb-refresh') { refreshLeaderboard(true); return; }
   if (id.startsWith('scene-')) {
     const key = id.replace('scene-', '');
@@ -343,20 +428,12 @@ export function handleButton(id) {
     return;
   }
   if (id.startsWith('diff-')) {
-    initAudio();
-    state.difficulty = id.replace('diff-', '');
-    state.mode = 'nameEntry';
+    chooseDifficulty(id.replace('diff-', ''));
     return;
   }
-  if (id === 'name-go') {
-    if (save.playerName.trim().length < 1) return;
-    initAudio();
-    save.playerName = save.playerName.trim();
-    persistSave();
-    state.delivered = 0;
-    startGameWithCloudSync();
-    return;
-  }
+  if (id === 'name-go') { confirmName(); return; }
+  if (id === 'tut-next') { nextTutorialPage(); return; }
+  if (id === 'tut-skip') { finishTutorial(); return; }
   if (id.startsWith('outfit-')) {
     const key = id.replace('outfit-', '');
     const outfit = OUTFITS[key];

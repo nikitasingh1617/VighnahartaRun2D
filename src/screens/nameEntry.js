@@ -1,10 +1,9 @@
 import { ctx, W } from '../core/canvas.js';
-import { camera } from '../core/state.js';
+import { camera, state } from '../core/state.js';
 import { drawMenuBackground } from './_background.js';
 import {
   drawOrnateLine, drawCornerFlourish, drawOmCartouche, rrect
 } from '../util/drawing.js';
-import { save } from '../core/save.js';
 import { drawButtons } from '../ui/buttons.js';
 import { drawKeyboard } from '../ui/virtualKeyboard.js';
 
@@ -39,13 +38,13 @@ export function drawNameEntryScreen() {
 
   ctx.fillStyle = 'rgba(255,220,150,0.78)';
   ctx.font = 'italic 12px Georgia, serif';
-  ctx.fillText('This name will appear on the leaderboard', W / 2, 88);
+  ctx.fillText('This name will appear on the leaderboard and your profile', W / 2, 88);
   ctx.restore();
 
   drawOrnateLine(W / 2, 104, 320, 'rgba(255,210,74,0.4)');
 
   /* Name display box */
-  const name = save.playerName || '';
+  const name = state.nameDraft || '';
   const boxW = 500, boxH = 68;
   const boxX = W / 2 - boxW / 2, boxY = 118;
 
@@ -102,6 +101,15 @@ export function drawNameEntryScreen() {
     ctx.lineTo(cursorX, boxY + boxH / 2 + 16);
     ctx.stroke();
   }
+  ctx.restore();
+
+  /* Permanent-name notice */
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = "white";
+  ctx.font = 'bold 12px system-ui, sans-serif';
+  ctx.fillText('⚠  Choose carefully — your name is permanent and cannot be changed later.', W / 2, 196);
   ctx.restore();
 
   /* Virtual keyboard */

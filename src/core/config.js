@@ -5,3 +5,4 @@ export const GRAV = 1750;
 export const JUMP_V = -540;
 export const SPEED = 280;
 export const CROUCH_SPEED = 170;
+export const TUTORIAL_PAGES = 8;   // keep in sync with PAGES in screens/tutorial.js

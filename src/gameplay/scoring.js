@@ -22,6 +22,37 @@ function buildRecord() {
   };
 }
 
+/* Lifetime stats for the User page (kept per player name, on this device) */
+function recordRunStats(won) {
+  const name = (save.playerName || '').trim();
+  if (!name) return;
+  if (!save.stats) save.stats = {};
+  const key = name.toLowerCase();
+  const s = save.stats[key] || (save.stats[key] = {
+    name, runs: 0, wins: 0, delivered: 0, distance: 0, coins: 0, seconds: 0,
+    lastPlayed: 0, best: {}
+  });
+  s.name = name;
+  if (!s.best) s.best = {};
+
+  const rounds = state.delivered || 0;
+  const time = Math.round(state.finalRunTime);
+  s.runs += 1;
+  if (won) s.wins += 1;
+  s.delivered += rounds;
+  s.distance += Math.round((state.finalRunDistance || 0) / 10);
+  s.coins += state.finalRunCoins || 0;
+  s.seconds += time;
+  s.lastPlayed = Date.now();
+
+  const d = state.difficulty || 'medium';
+  const old = s.best[d];
+  if (rounds >= 1 && (!old || rounds > old.rounds || (rounds === old.rounds && time < old.time))) {
+    s.best[d] = { rounds, time, date: Date.now() };
+  }
+  persistSave();
+}
+
 function submitLocal(record) {
   const idx = save.leaderboard.findIndex(e => e.name === record.name);
   if (idx >= 0) {
@@ -43,6 +74,7 @@ function submitLocal(record) {
 
 export function recordRunCaught() {
   freezeStats();
+  recordRunStats(false);
   if (state.delivered < 1) return;
   const record = buildRecord();
   submitLocal(record);
@@ -51,6 +83,7 @@ export function recordRunCaught() {
 
 export function completeGame() {
   freezeStats();
+  recordRunStats(true);
 
   if (state.score > (save.bestScores[state.scene] || 0)) {
     save.bestScores[state.scene] = state.score;

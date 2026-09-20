@@ -2,6 +2,8 @@ import { GROUND_Y } from './config.js';
 
 export const state = {
   mode: 'menu',
+  tutorialPage: 0,          // current page of the one-time tutorial
+  nameDraft: '',            // name being typed on the name-entry screen (not saved until confirmed)
   scene: 'night',
   difficulty: 'medium',
   round: 1,

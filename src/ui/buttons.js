@@ -6,6 +6,7 @@ import { rrect } from '../util/drawing.js';
 import { getCurrentButtons, getPurchaseModalRects, getBackButton } from './registry.js';
 import { drawSceneCard, drawDiffCard, drawOutfitCard } from './cards.js';
 import { isMuted } from '../core/audio.js';
+import { drawMiniCharacter } from '../player/draw.js';
 
 export function drawButton(b, hovered) {
   const { x, y, w, h, label, accent } = b;
@@ -95,6 +96,68 @@ function drawMuteButton(b, hovered) {
     ctx.arc(cx + 1, cy, 8, -0.6, 0.6);
     ctx.stroke();
   }
+  ctx.restore();
+}
+
+/* User icon (avatar circle) + name pill — main menu, top-left */
+function drawUserButton(b, hovered) {
+  const { x, y, w, h } = b;
+  const name = (save.playerName || '').trim();
+  const cx = x + 20, cy = y + h / 2;
+  const accent = '#ffd24a';
+
+  ctx.save();
+  if (name) {
+    ctx.shadowColor = hovered ? accent : 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur = hovered ? 18 : 8;
+    ctx.fillStyle = 'rgba(20,10,6,0.88)';
+    rrect(x + 16, y + 6, w - 16, h - 12, 14); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = hovered ? accent : 'rgba(255,210,74,0.6)';
+    ctx.lineWidth = hovered ? 2 : 1.5;
+    rrect(x + 16, y + 6, w - 16, h - 12, 14); ctx.stroke();
+
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(255,210,120,0.85)';
+    ctx.font = 'bold 11px system-ui, sans-serif';
+    ctx.fillText('BHAKT', x + 48, cy + 1);
+
+    /* shrink long names to fit the pill */
+    let px = 14;
+    ctx.font = 'bold ' + px + 'px Georgia, serif';
+    while (px > 10 && ctx.measureText(name).width > w - 100 - 12) {
+      px -= 1; ctx.font = 'bold ' + px + 'px Georgia, serif';
+    }
+    ctx.fillStyle = accent;
+    ctx.fillText(name, x + 96, cy + 1);
+  }
+
+  /* avatar circle */
+  ctx.shadowColor = hovered ? accent : 'rgba(0,0,0,0.7)';
+  ctx.shadowBlur = hovered ? 22 : 10;
+  const g = ctx.createLinearGradient(cx, cy - 18, cx, cy + 18);
+  g.addColorStop(0, hovered ? 'rgba(78,40,18,0.98)' : 'rgba(46,22,30,0.96)');
+  g.addColorStop(1, hovered ? 'rgba(30,14,4,0.98)'  : 'rgba(18,8,14,0.98)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(cx, cy, 18, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = hovered ? accent : 'rgba(255,210,74,0.75)';
+  ctx.lineWidth = hovered ? 2.4 : 1.8;
+  ctx.beginPath(); ctx.arc(cx, cy, 18, 0, Math.PI * 2); ctx.stroke();
+
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, 16.5, 0, Math.PI * 2); ctx.clip();
+  if (name) {
+    /* equipped outfit as the profile picture */
+    const o = OUTFITS[save.selectedOutfit] || OUTFITS.classic;
+    drawMiniCharacter(cx, cy + 40 * 0.7 - 3, o, 0.7);
+  } else {
+    /* no player yet: generic person glyph (head + shoulders) */
+    ctx.fillStyle = hovered ? '#fff8d0' : accent;
+    ctx.beginPath(); ctx.arc(cx, cy - 4.5, 5.6, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cx, cy + 14, 11, 9, 0, Math.PI, 0); ctx.fill();
+  }
+  ctx.restore();
   ctx.restore();
 }
 
@@ -210,6 +273,8 @@ export function drawButtons() {
       drawMuteButton(b, ui.hoveredId === b.id);
     } else if (b.backButton) {
       drawBackButton(b, ui.hoveredId === b.id);
+    } else if (b.userButton) {
+      drawUserButton(b, ui.hoveredId === b.id);
     } else if (b.card && b.sceneKey) {
       drawSceneCard(b, ui.hoveredId === b.id);
     } else if (b.card && b.diffKey) {

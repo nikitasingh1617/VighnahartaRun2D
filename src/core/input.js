@@ -1,8 +1,8 @@
 ﻿import { state, keys, player, ui } from './state.js';
-import { initAudio } from './audio.js';
+import { initAudio, playClick } from './audio.js';
 import { save, persistSave } from './save.js';
 import { screenToCanvas } from '../util/drawing.js';
-import { hitTestButton, handleButton, goBack } from '../ui/registry.js';
+import { hitTestButton, handleButton, goBack, startPlayFlow, chooseDifficulty, confirmName, nextTutorialPage } from '../ui/registry.js';
 import { processCheatKey } from '../cheats.js';
 import { cvs, W } from './canvas.js';
 import {
@@ -107,23 +107,23 @@ export function installInput() {
 
     if (state.mode === 'nameEntry') {
       if (k === 'Backspace') {
-        save.playerName = (save.playerName || '').slice(0, -1);
-        persistSave(); return;
-      }
-      if (k === 'Enter') {
-        if (save.playerName.trim().length >= 1) {
-          save.playerName = save.playerName.trim();
-          persistSave();
-          state.delivered = 0;
-          import('../cloud.js').then(c => c.startGameWithCloudSync());
-        }
+        state.nameDraft = (state.nameDraft || '').slice(0, -1);
         return;
       }
+      if (k === 'Enter') { confirmName(); return; }
       if (k === 'Escape') { state.mode = 'diffSelect'; return; }
-      if (k.length === 1 && /[a-zA-Z0-9 ]/.test(k) && (save.playerName || '').length < 14) {
-        save.playerName = (save.playerName || '') + k;
-        persistSave(); return;
+      if (k.length === 1 && /[a-zA-Z0-9 ]/.test(k) && (state.nameDraft || '').length < 14) {
+        state.nameDraft = (state.nameDraft || '') + k;
+        return;
       }
+      return;
+    }
+
+    /* Tutorial: only Enter / Esc / Backspace navigate, so every gameplay key
+       (WASD, arrows, Space, E, Alt) is free to be tried out on the demo pages */
+    if (state.mode === 'tutorial') {
+      if (k === 'Enter') { playClick(); nextTutorialPage(); }
+      else if (k === 'Escape' || k === 'Backspace') goBack();
       return;
     }
 
@@ -166,12 +166,12 @@ export function installInput() {
     }
     if (state.mode === 'diffSelect') {
       if (k === 'Escape' || k === 'Backspace') { state.mode = 'sceneSelect'; return; }
-      if (k === '1') { state.difficulty = 'easy';   state.mode = 'nameEntry'; return; }
-      if (k === '2') { state.difficulty = 'medium'; state.mode = 'nameEntry'; return; }
-      if (k === '3') { state.difficulty = 'hard';   state.mode = 'nameEntry'; return; }
+      if (k === '1') { chooseDifficulty('easy');   return; }
+      if (k === '2') { chooseDifficulty('medium'); return; }
+      if (k === '3') { chooseDifficulty('hard');   return; }
       return;
     }
-    if (state.mode === 'leaderboard' || state.mode === 'shop') {
+    if (state.mode === 'leaderboard' || state.mode === 'shop' || state.mode === 'user') {
       if (k === 'Escape' || k === 'Backspace') { state.mode = 'menu'; return; }
     }
     if (k === 'Escape' || k === 'p' || k === 'P') {
@@ -277,10 +277,7 @@ export function installInput() {
 }
 
 function handleConfirm() {
-  if (state.mode === 'menu') {
-    state.mode = 'intro'; state.introT = 0;
-    state.instructionsScrollY = 0; state.instructionsScrollTarget = 0;
-  }
+  if (state.mode === 'menu') { startPlayFlow(); }
   else if (state.mode === 'instructions') {
     state.mode = 'menu';
     state.instructionsScrollY = 0; state.instructionsScrollTarget = 0;
@@ -288,7 +285,7 @@ function handleConfirm() {
   else if (state.mode === 'exit') { state.mode = 'menu'; }
   else if (state.mode === 'sceneSelect') { state.mode = 'menu'; }
   else if (state.mode === 'diffSelect') { state.mode = 'sceneSelect'; }
-  else if (state.mode === 'leaderboard' || state.mode === 'shop') { state.mode = 'menu'; }
+  else if (state.mode === 'leaderboard' || state.mode === 'shop' || state.mode === 'user') { state.mode = 'menu'; }
   else if (state.mode === 'paused') { state.mode = 'playing'; }
   else if (state.mode === 'win' && state.winT >= 3.5) {
     import('../gameplay/rounds.js').then(m => { state.delivered = 0; m.startRound(1); });

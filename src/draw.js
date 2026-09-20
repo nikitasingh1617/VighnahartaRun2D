@@ -17,8 +17,10 @@ import { drawInstructionsMobileScreen, drawIntroMobileScreen } from './screens/i
 import { drawSceneSelectScreen } from './screens/sceneSelect.js';
 import { drawDiffSelectScreen } from './screens/diffSelect.js';
 import { drawNameEntryScreen } from './screens/nameEntry.js';
+import { drawTutorialScreen } from './screens/tutorial.js';
 import { drawLeaderboardScreen } from './screens/leaderboard.js';
 import { drawShopScreen } from './screens/shop.js';
+import { drawUserScreen } from './screens/user.js';
 import { drawExitScreen } from './screens/exit.js';
 import { drawHUD } from './screens/hud.js';
 import { drawPauseOverlay } from './screens/pause.js';
@@ -46,8 +48,10 @@ export function draw() {
   if (state.mode === 'sceneSelect')  { drawSceneSelectScreen();  return; }
   if (state.mode === 'diffSelect')   { drawDiffSelectScreen();   return; }
   if (state.mode === 'nameEntry')    { drawNameEntryScreen();    return; }
+  if (state.mode === 'tutorial')     { drawTutorialScreen();     return; }
   if (state.mode === 'leaderboard')  { drawLeaderboardScreen();  return; }
   if (state.mode === 'shop')         { drawShopScreen();         return; }
+  if (state.mode === 'user')         { drawUserScreen();         return; }
   if (state.mode === 'exit')         { drawExitScreen();         return; }
 
   ctx.save();
