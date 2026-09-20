@@ -90,7 +90,7 @@ export function drawLeaderboardScreen() {
   drawOrnateLine(W / 2, 104, 420, 'rgba(255,220,150,0.75)');
   drawCoinPill(W - 90, 40, save.coins);
 
-  /* Panel — softer cream instead of near-white */
+  /* Panel */
   const panelX = 40, panelY = 118, panelW = W - 80, panelH = 344;
   ctx.save();
   ctx.shadowColor = 'rgba(60,30,10,0.55)';
@@ -109,7 +109,6 @@ export function drawLeaderboardScreen() {
   ctx.strokeStyle = 'rgba(200,120,24,0.25)'; ctx.lineWidth = 1;
   rrect(panelX + 6, panelY + 6, panelW - 12, panelH - 12, 10); ctx.stroke();
 
-  /* 3 columns */
   const pad = 20;
   const gap = 12;
   const colW = (panelW - pad * 2 - gap * 2) / 3;
@@ -119,11 +118,10 @@ export function drawLeaderboardScreen() {
 
   const groups = groupByDifficulty(cachedRows);
 
-  drawColumn(colX[0], colY, colW, colH, 'EASY',   '#3a9e4a', '#e8f8e8', '#2a6e30', groups.easy);
-  drawColumn(colX[1], colY, colW, colH, 'MEDIUM', '#e08a28', '#fdf0d0', '#a05c10', groups.medium);
-  drawColumn(colX[2], colY, colW, colH, 'HARD',   '#c84848', '#fce0e0', '#8a2828', groups.hard);
+  drawColumn(colX[0], colY, colW, colH, 'EASY',   '#3a9e4a', '#e8f8e8', groups.easy);
+  drawColumn(colX[1], colY, colW, colH, 'MEDIUM', '#e08a28', '#fdf0d0', groups.medium);
+  drawColumn(colX[2], colY, colW, colH, 'HARD',   '#c84848', '#fce0e0', groups.hard);
 
-  /* Status */
   const statusY = panelY + panelH + 14;
   if (loading) {
     ctx.save();
@@ -150,119 +148,177 @@ export function drawLeaderboardScreen() {
   drawButtons();
 }
 
-function drawColumn(x, y, w, h, label, accent, accentLight, darkText, rows) {
-  /* Header — muted band with soft gradient */
-  const hg = ctx.createLinearGradient(0, y, 0, y + 28);
+/* ------------------------------------------------------------
+   One difficulty column
+   ------------------------------------------------------------ */
+function drawColumn(x, y, w, h, label, accent, accentLight, rows) {
+  /* ----- Difficulty header band ----- */
+  const headerH = 26;
+  const hg = ctx.createLinearGradient(0, y, 0, y + headerH);
   hg.addColorStop(0, accent);
-  hg.addColorStop(1, shade(accent, -0.15));
+  hg.addColorStop(1, shade(accent, -0.18));
   ctx.fillStyle = hg;
-  rrect(x, y, w, 28, 7); ctx.fill();
+  rrect(x, y, w, headerH, 8); ctx.fill();
 
-  /* Highlight line under header */
   ctx.strokeStyle = 'rgba(255,255,255,0.35)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(x + 8, y + 27);
-  ctx.lineTo(x + w - 8, y + 27);
+  ctx.moveTo(x + 8, y + headerH - 1);
+  ctx.lineTo(x + w - 8, y + headerH - 1);
   ctx.stroke();
 
   ctx.fillStyle = '#fff';
-  ctx.shadowColor = 'rgba(0,0,0,0.35)';
+  ctx.shadowColor = 'rgba(0,0,0,0.4)';
   ctx.shadowBlur = 4;
   ctx.font = 'bold 13px Georgia, serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(label, x + w / 2, y + 15);
+  ctx.fillText(label, x + w / 2, y + 14);
   ctx.shadowBlur = 0;
 
-  /* Column body background */
+  /* ----- Column body ----- */
+  const bodyY = y + headerH;
+  const bodyH = h - headerH;
   ctx.fillStyle = accentLight;
-  rrect(x, y + 28, w, h - 28, 7); ctx.fill();
+  rrect(x, bodyY, w, bodyH, 8); ctx.fill();
   ctx.strokeStyle = 'rgba(200,120,24,0.35)';
   ctx.lineWidth = 1;
-  rrect(x, y + 28, w, h - 28, 7); ctx.stroke();
+  rrect(x, bodyY, w, bodyH, 8); ctx.stroke();
 
-  /* Rank rows */
+  /* ----- Sub-header row: RANK · NAME · TIME · ROUNDS ----- */
+  const subH = 18;
+  const subY = bodyY;
+
+  ctx.fillStyle = 'rgba(120,80,30,0.12)';
+  rrect(x + 4, subY + 2, w - 8, subH - 2, 4); ctx.fill();
+
+  const positions = {
+    rankLeft:    x + 6,
+    rankCenter:  x + 20,
+    nameLeft:    x + 36,
+    timeRight:   x + w - 56,
+    roundsRight: x + w - 8
+  };
+
+  ctx.fillStyle = 'rgba(90,50,20,0.85)';
+  ctx.font = 'bold 8.5px system-ui, sans-serif';
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  ctx.fillText('RANK', positions.rankLeft, subY + 10);
+  ctx.fillText('NAME', positions.nameLeft, subY + 10);
+  ctx.textAlign = 'right';
+  ctx.fillText('TIME', positions.timeRight, subY + 10);
+  ctx.fillText('ROUNDS', positions.roundsRight, subY + 10);
+
+  /* Thin divider under the sub-header */
+  ctx.strokeStyle = 'rgba(120,80,30,0.35)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x + 8, subY + subH + 1);
+  ctx.lineTo(x + w - 8, subY + subH + 1);
+  ctx.stroke();
+
+  /* ----- Player rows ----- */
   const ranked = rankRows(rows);
-  const rowTop = y + 34;
-  const rowH = 28;
+  const rowTop = subY + subH + 4;
+  const rowH = 26;
 
   if (ranked.length === 0) {
     ctx.fillStyle = 'rgba(140,90,40,0.55)';
-    ctx.font = 'italic 11px Georgia, serif';
+    ctx.font = 'italic 10.5px Georgia, serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('no runs yet', x + w / 2, rowTop + 40);
+    ctx.fillText('no runs yet', x + w / 2, rowTop + 60);
     return;
   }
 
   for (let i = 0; i < 10; i++) {
     const ry = rowTop + i * rowH;
-    if (ry + rowH > y + h) break;
+    if (ry + rowH > y + h - 2) break;
+
+    const rowCenterY = ry + rowH / 2;
 
     /* Zebra */
     if (i % 2 === 0) {
-      ctx.fillStyle = 'rgba(255,240,200,0.5)';
-      rrect(x + 5, ry, w - 10, rowH - 2, 5);
+      ctx.fillStyle = 'rgba(255,240,200,0.55)';
+      rrect(x + 4, ry + 1, w - 8, rowH - 2, 4);
       ctx.fill();
     }
 
     if (i >= ranked.length) continue;
     const p = ranked[i];
 
-    /* Rank medal */
+    /* Rank badge */
     const badgeCol = i === 0 ? '#ffd24a'
                    : i === 1 ? '#dcdce8'
                    : i === 2 ? '#e0a868'
                    : 'rgba(200,150,90,0.45)';
 
-    /* Glow behind top-3 */
     if (i < 3) {
-      const gl = ctx.createRadialGradient(x + 15, ry + 14, 2, x + 15, ry + 14, 14);
-      gl.addColorStop(0, i === 0 ? 'rgba(255,210,80,0.65)' : 'rgba(220,220,240,0.5)');
+      const gl = ctx.createRadialGradient(
+        positions.rankCenter, rowCenterY, 2,
+        positions.rankCenter, rowCenterY, 14);
+      gl.addColorStop(0, i === 0 ? 'rgba(255,210,80,0.7)' : 'rgba(220,220,240,0.55)');
       gl.addColorStop(1, 'rgba(255,210,80,0)');
       ctx.fillStyle = gl;
-      ctx.beginPath(); ctx.arc(x + 15, ry + 14, 14, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath();
+      ctx.arc(positions.rankCenter, rowCenterY, 14, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     ctx.fillStyle = badgeCol;
     ctx.beginPath();
-    ctx.arc(x + 15, ry + 14, 9, 0, Math.PI * 2);
+    ctx.arc(positions.rankCenter, rowCenterY, 9, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = 'rgba(140,80,20,0.55)';
     ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(x + 15, ry + 14, 9, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(positions.rankCenter, rowCenterY, 9, 0, Math.PI * 2);
+    ctx.stroke();
 
     ctx.fillStyle = i < 3 ? '#5a2a00' : '#7a4a10';
     ctx.font = 'bold 11px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(String(i + 1), x + 15, ry + 15);
+    ctx.fillText(String(i + 1), positions.rankCenter, rowCenterY + 1);
 
-    /* Name + rounds */
-    ctx.fillStyle = '#5a2a00';
+    /* Name (bold) */
+    let nameText = (p.name || 'Anonymous').trim();
+    if (nameText.length > 12) nameText = nameText.slice(0, 11) + '…';
+
     ctx.font = 'bold 11px Georgia, serif';
     ctx.textAlign = 'left';
-    const name = (p.name || 'Anonymous').slice(0, 12);
-    ctx.fillText(name, x + 30, ry + 10);
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#5a2a00';
+    ctx.fillText(nameText, positions.nameLeft, rowCenterY + 1);
 
+    /* Coins — right after the name */
+    const nameW = ctx.measureText(nameText).width;
+    const coinsX = positions.nameLeft + nameW + 6;
+    const coinsText = '₲' + p.coinsHeld;
+
+    /* Don't let coins collide with the TIME column */
+    ctx.font = 'italic 9.5px Georgia, serif';
+    const coinsW = ctx.measureText(coinsText).width;
+    if (coinsX + coinsW < positions.timeRight - 6) {
+      ctx.fillStyle = '#a06a18';
+      ctx.fillText(coinsText, coinsX, rowCenterY + 1);
+    }
+
+    /* Time — right aligned */
+    ctx.fillStyle = 'rgba(90,50,20,0.85)';
+    ctx.font = 'bold 11px system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(p.time + 's', positions.timeRight, rowCenterY + 1);
+
+    /* Rounds — right aligned */
     ctx.fillStyle = p.rounds >= 5 ? '#2a7a3a' : '#a05808';
     ctx.font = 'bold 11px Georgia, serif';
-    ctx.textAlign = 'right';
-    ctx.fillText(p.rounds + '/5', x + w - 10, ry + 10);
-
-    /* Wallet + time */
-    ctx.fillStyle = 'rgba(120,80,30,0.75)';
-    ctx.font = '10px system-ui, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText('₲ ' + p.coinsHeld, x + 30, ry + 22);
-
-    ctx.textAlign = 'right';
-    ctx.fillText(p.time + 's', x + w - 10, ry + 22);
+    ctx.fillText(p.rounds + '/5', positions.roundsRight, rowCenterY + 1);
   }
 }
 
-/* Darken or lighten a hex colour by factor (-1..1) */
+/* Darken/lighten hex by factor (-1..1) */
 function shade(hex, factor) {
   const c = hex.replace('#', '');
   const num = parseInt(c, 16);
