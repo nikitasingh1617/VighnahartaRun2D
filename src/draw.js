@@ -64,7 +64,7 @@ export function draw() {
   drawRoad();
 
   ctx.save();
-  ctx.translate(-Math.round(camera.x), 0);
+  ctx.translate(-Math.round(camera.x * sx) / sx, 0);
   drawStartTable();
   drawInteractPrompt();
   drawPandal();

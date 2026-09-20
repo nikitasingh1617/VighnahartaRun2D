@@ -1,4 +1,5 @@
 ﻿import { save, persistSave } from './core/save.js';
+import { state } from './core/state.js';
 
 const CLOUD_URL = 'https://script.google.com/macros/s/AKfycbxDzLQ_c1kSgWa0xYIFOSoQDZIPGcNEXSUB803O3GBUHKKOBdhjo5FBX9i4rSCdXBaJ/exec';
 
@@ -125,7 +126,7 @@ export async function submitRun(run) {
 
   const payload = {
     name: save.playerName.trim(),
-    difficulty: save.difficulty || 'medium',
+    difficulty: run.difficulty || state.difficulty || 'medium',
     rounds: Number(run.rounds) || 0,
     time: Number(run.time) || 0,
     coinsHeld: Number(save.coins) || 0,

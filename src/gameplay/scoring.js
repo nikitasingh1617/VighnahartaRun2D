@@ -14,6 +14,7 @@ function freezeStats() {
 function buildRecord() {
   return {
     name: save.playerName || 'Anonymous',
+    difficulty: state.difficulty || 'medium',
     rounds: state.delivered || 0,
     time: Math.round(state.finalRunTime),
     coinsHeld: save.coins,
