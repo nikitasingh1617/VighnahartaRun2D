@@ -8,9 +8,9 @@ let lastSync = 0;
 let syncInFlight = false;
 
 /* ------------------------------------------------------------
-   JSONP fetch — bypasses CORS entirely
+   JSONP with retry
    ------------------------------------------------------------ */
-function jsonpGet(url, timeoutMs = 10000) {
+function jsonpAttempt(url, timeoutMs) {
   return new Promise((resolve, reject) => {
     const cbName = '__vh_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
     let done = false;
@@ -40,17 +40,32 @@ function jsonpGet(url, timeoutMs = 10000) {
       if (done) return;
       done = true;
       cleanup();
-      reject(new Error('script error'));
+      reject(new Error('script_error'));
     };
 
     const sep = url.indexOf('?') >= 0 ? '&' : '?';
-    script.src = url + sep + 'callback=' + cbName + '&t=' + Date.now();
+    script.src = url + sep + 'callback=' + cbName + '&_=' + Date.now();
     document.head.appendChild(script);
   });
 }
 
+async function jsonpGet(url, timeoutMs = 20000, retries = 2) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const data = await jsonpAttempt(url, timeoutMs);
+      return data;
+    } catch (e) {
+      console.warn('[cloud] JSONP attempt ' + (i + 1) + ' failed:', e.message);
+      if (i === retries) return null;
+      /* Small backoff before retry */
+      await new Promise(r => setTimeout(r, 500 * (i + 1)));
+    }
+  }
+  return null;
+}
+
 /* ------------------------------------------------------------
-   Local cache
+   Cache
    ------------------------------------------------------------ */
 function readCache() {
   try {
@@ -79,36 +94,38 @@ export function getCachedBoard() {
 }
 
 /* ------------------------------------------------------------
-   Fetch leaderboard via JSONP
+   Fetch leaderboard
    ------------------------------------------------------------ */
 export async function fetchLeaderboard() {
-  try {
-    const data = await jsonpGet(CLOUD_URL, 10000);
-    if (!Array.isArray(data)) return null;
+  console.log('[cloud] fetching leaderboard…');
+  const data = await jsonpGet(CLOUD_URL, 20000, 2);
 
-    const cleaned = data
-      .filter(p => p && p.name)
-      .map(p => ({
-        name: String(p.name).trim(),
-        bestScore: Number(p.bestScore) || 0,
-        bestTime: Number(p.bestTime) || 0,
-        bestRounds: Number(p.bestRounds) || 0,
-        coinsHeld: Number(p.coinsHeld) || 0,
-        lastScene: p.lastScene || 'night',
-        lastDifficulty: p.lastDifficulty || 'medium',
-        lastUpdated: p.lastUpdated || ''
-      }))
-      .filter(p => p.name.length > 0);
-
-    writeCache(cleaned);
-    return cleaned;
-  } catch (e) {
+  if (!Array.isArray(data)) {
+    console.warn('[cloud] no valid data — likely blocked or timing out');
     return null;
   }
+
+  const cleaned = data
+    .filter(p => p && p.name)
+    .map(p => ({
+      name: String(p.name).trim(),
+      bestScore: Number(p.bestScore) || 0,
+      bestTime: Number(p.bestTime) || 0,
+      bestRounds: Number(p.bestRounds) || 0,
+      coinsHeld: Number(p.coinsHeld) || 0,
+      lastScene: p.lastScene || 'night',
+      lastDifficulty: p.lastDifficulty || 'medium',
+      lastUpdated: p.lastUpdated || ''
+    }))
+    .filter(p => p.name.length > 0);
+
+  console.log('[cloud] got ' + cleaned.length + ' players');
+  writeCache(cleaned);
+  return cleaned;
 }
 
 /* ------------------------------------------------------------
-   POST — use no-cors fire-and-forget
+   POST — fire and forget
    ------------------------------------------------------------ */
 export async function submitRun(run) {
   if (!save.playerName || save.playerName.trim().length < 1) return;
@@ -135,7 +152,7 @@ export async function submitRun(run) {
     });
     lastSync = Date.now();
   } catch (e) {
-    /* fire and forget */
+    /* ignore */
   } finally {
     syncInFlight = false;
   }
@@ -167,7 +184,7 @@ export async function syncWallet() {
 }
 
 /* ------------------------------------------------------------
-   Load single player
+   Load single player (uses cache if available)
    ------------------------------------------------------------ */
 export async function loadPlayerFromCloud(name) {
   if (!name || name.trim().length < 1) return null;
@@ -187,22 +204,19 @@ export async function loadPlayerFromCloud(name) {
     }
   }
 
-  try {
-    const data = await jsonpGet(CLOUD_URL, 10000);
-    if (!Array.isArray(data)) return null;
-    const me = data.find(p =>
-      (p.name || '').trim().toLowerCase() === name.trim().toLowerCase()
-    );
-    if (!me) return null;
-    return {
-      coinsHeld: Number(me.coinsHeld) || 0,
-      bestScore: Number(me.bestScore) || 0,
-      bestTime: Number(me.bestTime) || 0,
-      bestRounds: Number(me.bestRounds) || 0
-    };
-  } catch (e) {
-    return null;
-  }
+  const data = await jsonpGet(CLOUD_URL, 20000, 1);
+  if (!Array.isArray(data)) return null;
+
+  const me = data.find(p =>
+    (p.name || '').trim().toLowerCase() === name.trim().toLowerCase()
+  );
+  if (!me) return null;
+  return {
+    coinsHeld: Number(me.coinsHeld) || 0,
+    bestScore: Number(me.bestScore) || 0,
+    bestTime: Number(me.bestTime) || 0,
+    bestRounds: Number(me.bestRounds) || 0
+  };
 }
 
 export function startGameWithCloudSync() {

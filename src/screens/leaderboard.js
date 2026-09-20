@@ -226,15 +226,17 @@ export function drawLeaderboardScreen() {
     ctx.textBaseline = 'middle';
     ctx.fillText('refreshing…', W / 2, statusY);
     ctx.restore();
-  } else if (lastError) {
+    } else if (lastError) {
     ctx.save();
-    ctx.fillStyle = 'rgba(255,140,140,0.75)';
+    ctx.fillStyle = 'rgba(180,90,40,0.85)';
     ctx.font = 'italic 11px Georgia, serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('couldn\u2019t reach cloud — showing saved scores', W / 2, statusY);
+    ctx.fillText(
+      'cloud not reachable — try disabling ad blocker for this site',
+      W / 2, statusY
+    );
     ctx.restore();
   }
-
   drawButtons();
 }
