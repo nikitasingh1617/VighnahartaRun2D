@@ -3,7 +3,7 @@ import { state } from './core/state.js';
 
 const CLOUD_URL = 'https://script.google.com/macros/s/AKfycbxDzLQ_c1kSgWa0xYIFOSoQDZIPGcNEXSUB803O3GBUHKKOBdhjo5FBX9i4rSCdXBaJ/exec';
 
-const CACHE_KEY = 'vighanharta_cloud_cache';
+const CACHE_KEY = 'vighanharta_cloud_cache_v2';
 
 let lastSync = 0;
 let syncInFlight = false;

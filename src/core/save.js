@@ -1,4 +1,10 @@
-const KEY = 'vighanharta_save_v1';
+/* v2 = fresh start: everything saved under the old v1 keys is ignored and wiped */
+const KEY = 'vighanharta_save_v2';
+const OLD_KEYS = ['vighanharta_save_v1', 'vighanharta_cloud_cache'];
+
+(function wipeOldData() {
+  try { OLD_KEYS.forEach(k => localStorage.removeItem(k)); } catch (e) {}
+})();
 
 export const save = {
   playerName: '',
