@@ -2,36 +2,67 @@ import { ctx, W } from '../core/canvas.js';
 import { drawMenuBackground } from './_background.js';
 import { drawOrnateLine, drawCoinPill, rrect } from '../util/drawing.js';
 import { save } from '../core/save.js';
-import { SCENES } from '../data/scenes.js';
-import { DIFFICULTIES } from '../data/difficulties.js';
 import { drawButtons } from '../ui/buttons.js';
-import { fetchLeaderboard, mergeLeaderboards, getCachedBoard } from '../cloud.js';
+import { fetchLeaderboard, getCachedBoard } from '../cloud.js';
 
-let cachedBoard = null;
+let cachedRows = null;
 let loading = false;
 let lastFetch = 0;
 let lastError = false;
 
+/* ------------------------------------------------------------
+   Rank a list of rows — rounds desc, then time asc
+   ------------------------------------------------------------ */
+function rankRows(rows) {
+  return rows.slice().sort((a, b) => {
+    if (b.rounds !== a.rounds) return b.rounds - a.rounds;
+    return a.time - b.time;
+  }).slice(0, 10);
+}
+
+function groupByDifficulty(rows) {
+  const groups = { easy: [], medium: [], hard: [] };
+  if (!rows) return groups;
+  for (const r of rows) {
+    const d = (r.difficulty || '').toLowerCase();
+    if (groups[d]) groups[d].push(r);
+  }
+  return groups;
+}
+
+/* Local rows fallback (from save.leaderboard) so there's always something */
+function localRowsFor(difficulty) {
+  /* save.leaderboard stores per-run records with a `rounds` field */
+  return (save.leaderboard || [])
+    .filter(r => r.rounds >= 1)
+    .map(r => ({
+      name: r.name,
+      difficulty: difficulty,
+      rounds: r.rounds,
+      time: r.time,
+      coinsHeld: r.coinsHeld
+    }));
+}
+
+/* ------------------------------------------------------------
+   Data loading
+   ------------------------------------------------------------ */
 function populateFromCache() {
-  const cloudCache = getCachedBoard();
-  cachedBoard = mergeLeaderboards(save.leaderboard, cloudCache || []);
+  cachedRows = getCachedBoard();
 }
 
 export function refreshLeaderboard(force = false) {
   if (loading) return;
-  if (!force && Date.now() - lastFetch < 3000 && cachedBoard) return;
+  if (!force && Date.now() - lastFetch < 3000 && cachedRows) return;
 
   loading = true;
   lastError = false;
 
   fetchLeaderboard().then(cloud => {
     if (cloud) {
-      cachedBoard = mergeLeaderboards(save.leaderboard, cloud);
+      cachedRows = cloud;
     } else {
       lastError = true;
-      if (!cachedBoard) {
-        cachedBoard = mergeLeaderboards(save.leaderboard, []);
-      }
     }
     lastFetch = Date.now();
     loading = false;
@@ -43,8 +74,11 @@ export function enterLeaderboard() {
   refreshLeaderboard(true);
 }
 
+/* ------------------------------------------------------------
+   Rendering
+   ------------------------------------------------------------ */
 export function drawLeaderboardScreen() {
-  if (!cachedBoard) {
+  if (!cachedRows) {
     populateFromCache();
     if (!loading) refreshLeaderboard(true);
   }
@@ -61,182 +95,151 @@ export function drawLeaderboardScreen() {
   ctx.fillStyle = halo;
   ctx.beginPath(); ctx.arc(W / 2, 66, 320, 0, Math.PI * 2); ctx.fill();
 
-  ctx.fillStyle = '#ffd24a';
-  ctx.shadowColor = 'rgba(255,150,40,0.6)';
+  ctx.fillStyle = '#7a3a00';
+  ctx.shadowColor = 'rgba(255,200,80,0.8)';
   ctx.shadowBlur = 20;
   ctx.font = 'bold 30px Georgia, serif';
   ctx.fillText('LEADERBOARD', W / 2, 58);
   ctx.shadowBlur = 0;
 
-  ctx.fillStyle = 'rgba(255,220,150,0.72)';
+  ctx.fillStyle = 'rgba(120,80,40,0.7)';
   ctx.font = 'italic 12px Georgia, serif';
-  ctx.fillText('Top 20 Bhakts across all devices', W / 2, 88);
+  ctx.fillText('Top 10 Bhakts per difficulty — ranked by rounds, then time', W / 2, 88);
   ctx.restore();
 
-  drawOrnateLine(W / 2, 104, 400, 'rgba(255,210,74,0.4)');
+  drawOrnateLine(W / 2, 104, 420, 'rgba(200,120,24,0.6)');
   drawCoinPill(W - 90, 40, save.coins);
 
+  /* Panel */
   const panelX = 40, panelY = 118, panelW = W - 80, panelH = 344;
   ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,0.7)';
+  ctx.shadowColor = 'rgba(180,120,40,0.35)';
   ctx.shadowBlur = 22;
-  ctx.fillStyle = 'rgba(24,10,14,0.94)';
+  ctx.fillStyle = 'rgba(255,250,240,0.96)';
   rrect(panelX, panelY, panelW, panelH, 14);
   ctx.fill();
   ctx.restore();
-  ctx.strokeStyle = 'rgba(255,210,74,0.55)';
-  ctx.lineWidth = 2;
-  rrect(panelX, panelY, panelW, panelH, 14);
-  ctx.stroke();
+  ctx.strokeStyle = '#e8a020'; ctx.lineWidth = 2;
+  rrect(panelX, panelY, panelW, panelH, 14); ctx.stroke();
 
-  const cols = {
-    rank:    panelX + 18,
-    name:    panelX + 56,
-    score:   panelX + 200,
-    seconds: panelX + 300,
-    rounds:  panelX + 385,
-    coins:   panelX + 475,
-    scene:   panelX + 610,
-    diff:    panelX + 680,
-    date:    panelX + panelW - 18
-  };
+  /* 3 columns */
+  const pad = 20;
+  const gap = 12;
+  const colW = (panelW - pad * 2 - gap * 2) / 3;
+  const colX = [panelX + pad, panelX + pad + colW + gap, panelX + pad + (colW + gap) * 2];
+  const colY = panelY + 12;
+  const colH = panelH - 24;
 
-  ctx.save();
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = 'rgba(255,210,120,0.8)';
-  ctx.font = 'bold 9px system-ui, sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText('RANK',   cols.rank,    panelY + 22);
-  ctx.fillText('BHAKT',  cols.name,    panelY + 22);
-  ctx.fillText('SCORE',  cols.score,   panelY + 22);
-  ctx.fillText('TIME',   cols.seconds, panelY + 22);
-  ctx.fillText('ROUNDS', cols.rounds,  panelY + 22);
-  ctx.fillText('COINS',  cols.coins,   panelY + 22);
-  ctx.fillText('SCENE',  cols.scene,   panelY + 22);
-  ctx.fillText('DIFF',   cols.diff,    panelY + 22);
-  ctx.textAlign = 'right';
-  ctx.fillText('DATE',   cols.date,    panelY + 22);
-  ctx.restore();
+  const groups = groupByDifficulty(cachedRows);
 
-  ctx.strokeStyle = 'rgba(255,210,74,0.25)';
-  ctx.beginPath();
-  ctx.moveTo(panelX + 14, panelY + 38);
-  ctx.lineTo(panelX + panelW - 14, panelY + 38);
-  ctx.stroke();
+  drawColumn(colX[0], colY, colW, colH, 'easy',   'EASY',   '#2a8a3a', '#d8f5d8', groups.easy);
+  drawColumn(colX[1], colY, colW, colH, 'medium', 'MEDIUM', '#c87818', '#ffe8b8', groups.medium);
+  drawColumn(colX[2], colY, colW, colH, 'hard',   'HARD',   '#a82828', '#ffd8d8', groups.hard);
 
-  const lb = cachedBoard || [];
-  if (lb.length === 0) {
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'rgba(255,235,200,0.55)';
-    ctx.font = 'italic 14px Georgia, serif';
-    ctx.fillText('No players yet — be the first!', W / 2, panelY + panelH / 2);
-    ctx.fillStyle = 'rgba(255,235,200,0.4)';
-    ctx.font = '12px system-ui, sans-serif';
-    ctx.fillText('Complete at least one round to appear here.', W / 2, panelY + panelH / 2 + 26);
-    ctx.restore();
-  } else {
-    const rowH = 26;
-    for (let i = 0; i < lb.length && i < 11; i++) {
-      const e = lb[i];
-      const rowY = panelY + 56 + i * rowH;
-
-      if (i % 2 === 0) {
-        ctx.fillStyle = 'rgba(255,210,74,0.05)';
-        rrect(panelX + 10, rowY - 11, panelW - 20, rowH - 2, 6);
-        ctx.fill();
-      }
-
-      const scene = SCENES[e.scene] || SCENES.night;
-      const diff = DIFFICULTIES[e.difficulty] || DIFFICULTIES.medium;
-
-      ctx.save();
-      ctx.textBaseline = 'middle';
-
-      let rankCol = '#ffe9b0';
-      if (i === 0) rankCol = '#ffd24a';
-      else if (i === 1) rankCol = '#d8d8e8';
-      else if (i === 2) rankCol = '#c8905a';
-      ctx.fillStyle = rankCol;
-      ctx.font = 'bold 13px Georgia, serif';
-      ctx.textAlign = 'left';
-      const medal = i === 0 ? '1' : i === 1 ? '2' : i === 2 ? '3' : String(i + 1);
-      ctx.fillText(medal, cols.rank, rowY);
-
-      ctx.fillStyle = '#ffe9b0';
-      ctx.font = 'bold 11px Georgia, serif';
-      const name = (e.name || 'Anonymous').slice(0, 14);
-      ctx.fillText(name, cols.name, rowY);
-
-      ctx.fillStyle = '#ffd24a';
-      ctx.font = 'bold 12px Georgia, serif';
-      ctx.fillText((e.score || 0) + 'm', cols.score, rowY);
-
-      ctx.fillStyle = 'rgba(255,220,180,0.9)';
-      ctx.font = 'bold 10.5px system-ui, sans-serif';
-      ctx.fillText((e.seconds || 0) + 's', cols.seconds, rowY);
-
-      const rc = e.roundsCompleted || 0;
-      const rCol = rc >= 5 ? '#a8e6a0' : rc >= 3 ? '#ffd24a' : '#ff8a8a';
-      ctx.fillStyle = rCol;
-      ctx.font = 'bold 11px Georgia, serif';
-      ctx.fillText(rc + '/5', cols.rounds, rowY);
-
-      ctx.fillStyle = '#ffd24a';
-      ctx.font = 'bold 11px Georgia, serif';
-      ctx.fillText((e.coinsHeld || 0) + 'c', cols.coins, rowY);
-
-      ctx.fillStyle = scene.color;
-      ctx.font = 'bold 12px system-ui, sans-serif';
-      ctx.fillText(scene.icon, cols.scene, rowY);
-
-      const dcw = 44, dch = 15;
-      const dcx = cols.diff, dcy = rowY;
-      ctx.fillStyle = `rgba(${diff.colorRGB},0.20)`;
-      rrect(dcx, dcy - dch / 2, dcw, dch, 5);
-      ctx.fill();
-      ctx.strokeStyle = diff.color;
-      ctx.lineWidth = 1;
-      rrect(dcx, dcy - dch / 2, dcw, dch, 5);
-      ctx.stroke();
-      ctx.fillStyle = diff.color;
-      ctx.font = 'bold 8px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(diff.name, dcx + dcw / 2, dcy + 1);
-
-      ctx.fillStyle = 'rgba(255,235,200,0.5)';
-      ctx.font = '9px system-ui, sans-serif';
-      ctx.textAlign = 'right';
-      ctx.fillText((e.date || '').slice(0, 10), cols.date, rowY);
-
-      ctx.restore();
-    }
-  }
-
-  /* Status below the panel */
+  /* Status */
   const statusY = panelY + panelH + 14;
   if (loading) {
     ctx.save();
     const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 300);
     ctx.globalAlpha = 0.6 + pulse * 0.3;
-    ctx.fillStyle = '#ffd24a';
+    ctx.fillStyle = '#a05808';
     ctx.font = 'italic 11px Georgia, serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('refreshing…', W / 2, statusY);
     ctx.restore();
-    } else if (lastError) {
+  } else if (lastError) {
     ctx.save();
     ctx.fillStyle = 'rgba(180,90,40,0.85)';
     ctx.font = 'italic 11px Georgia, serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(
-      'cloud not reachable — try disabling ad blocker for this site',
-      W / 2, statusY
-    );
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('cloud not reachable — try disabling ad blocker for this site', W / 2, statusY);
     ctx.restore();
   }
+
   drawButtons();
+}
+
+/* ------------------------------------------------------------
+   One column
+   ------------------------------------------------------------ */
+function drawColumn(x, y, w, h, key, label, accent, accentLight, rows) {
+  /* Header */
+  const hg = ctx.createLinearGradient(0, y, 0, y + 26);
+  hg.addColorStop(0, accent);
+  hg.addColorStop(1, accent);
+  ctx.fillStyle = hg;
+  rrect(x, y, w, 26, 6); ctx.fill();
+
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 13px Georgia, serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, x + w / 2, y + 14);
+
+  /* Rank rows */
+  const ranked = rankRows(rows);
+  const rowTop = y + 32;
+  const rowH = 28;
+
+  if (ranked.length === 0) {
+    ctx.fillStyle = 'rgba(120,80,40,0.55)';
+    ctx.font = 'italic 11px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('no runs yet', x + w / 2, rowTop + 40);
+    return;
+  }
+
+  for (let i = 0; i < 10; i++) {
+    const ry = rowTop + i * rowH;
+    if (ry + rowH > y + h) break;
+
+    /* zebra stripe */
+    if (i % 2 === 0) {
+      ctx.fillStyle = 'rgba(255,210,120,0.14)';
+      rrect(x + 4, ry, w - 8, rowH - 2, 5);
+      ctx.fill();
+    }
+
+    if (i >= ranked.length) continue;
+
+    const p = ranked[i];
+
+    /* Rank badge */
+    const badgeCol = i === 0 ? '#ffd24a'
+                   : i === 1 ? '#c8c8d8'
+                   : i === 2 ? '#d89858'
+                   : 'rgba(200,150,90,0.55)';
+    ctx.fillStyle = badgeCol;
+    ctx.beginPath();
+    ctx.arc(x + 15, ry + 14, 9, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = i < 3 ? '#7a3a00' : '#fff';
+    ctx.font = 'bold 11px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(i + 1), x + 15, ry + 15);
+
+    /* Name + rounds (line 1) */
+    ctx.fillStyle = '#7a3a00';
+    ctx.font = 'bold 11px Georgia, serif';
+    ctx.textAlign = 'left';
+    const name = (p.name || 'Anonymous').slice(0, 12);
+    ctx.fillText(name, x + 30, ry + 10);
+
+    ctx.fillStyle = p.rounds >= 5 ? '#2a8a3a' : '#a05808';
+    ctx.font = 'bold 11px Georgia, serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(p.rounds + '/5', x + w - 10, ry + 10);
+
+    /* Time + wallet (line 2) */
+    ctx.fillStyle = 'rgba(120,80,40,0.7)';
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('₲ ' + p.coinsHeld, x + 30, ry + 22);
+
+    ctx.textAlign = 'right';
+    ctx.fillText(p.time + 's', x + w - 10, ry + 22);
+  }
 }

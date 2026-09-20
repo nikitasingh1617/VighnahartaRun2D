@@ -52,12 +52,10 @@ function jsonpAttempt(url, timeoutMs) {
 async function jsonpGet(url, timeoutMs = 20000, retries = 2) {
   for (let i = 0; i <= retries; i++) {
     try {
-      const data = await jsonpAttempt(url, timeoutMs);
-      return data;
+      return await jsonpAttempt(url, timeoutMs);
     } catch (e) {
       console.warn('[cloud] JSONP attempt ' + (i + 1) + ' failed:', e.message);
       if (i === retries) return null;
-      /* Small backoff before retry */
       await new Promise(r => setTimeout(r, 500 * (i + 1)));
     }
   }
@@ -74,17 +72,12 @@ function readCache() {
     const parsed = JSON.parse(raw);
     if (!parsed || !Array.isArray(parsed.board)) return null;
     return parsed;
-  } catch (e) {
-    return null;
-  }
+  } catch (e) { return null; }
 }
 
 function writeCache(board) {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({
-      board,
-      savedAt: Date.now()
-    }));
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ board, savedAt: Date.now() }));
   } catch (e) {}
 }
 
@@ -94,14 +87,14 @@ export function getCachedBoard() {
 }
 
 /* ------------------------------------------------------------
-   Fetch leaderboard
+   Fetch leaderboard (returns raw rows)
    ------------------------------------------------------------ */
 export async function fetchLeaderboard() {
   console.log('[cloud] fetching leaderboard…');
   const data = await jsonpGet(CLOUD_URL, 20000, 2);
 
   if (!Array.isArray(data)) {
-    console.warn('[cloud] no valid data — likely blocked or timing out');
+    console.warn('[cloud] no valid data');
     return null;
   }
 
@@ -109,23 +102,21 @@ export async function fetchLeaderboard() {
     .filter(p => p && p.name)
     .map(p => ({
       name: String(p.name).trim(),
-      bestScore: Number(p.bestScore) || 0,
-      bestTime: Number(p.bestTime) || 0,
-      bestRounds: Number(p.bestRounds) || 0,
+      difficulty: String(p.difficulty || 'medium').toLowerCase(),
+      rounds: Number(p.rounds) || 0,
+      time: Number(p.time) || 0,
       coinsHeld: Number(p.coinsHeld) || 0,
-      lastScene: p.lastScene || 'night',
-      lastDifficulty: p.lastDifficulty || 'medium',
       lastUpdated: p.lastUpdated || ''
     }))
-    .filter(p => p.name.length > 0);
+    .filter(p => p.name.length > 0 && p.rounds >= 1);
 
-  console.log('[cloud] got ' + cleaned.length + ' players');
+  console.log('[cloud] got ' + cleaned.length + ' rows');
   writeCache(cleaned);
   return cleaned;
 }
 
 /* ------------------------------------------------------------
-   POST — fire and forget
+   Submit a run
    ------------------------------------------------------------ */
 export async function submitRun(run) {
   if (!save.playerName || save.playerName.trim().length < 1) return;
@@ -134,12 +125,10 @@ export async function submitRun(run) {
 
   const payload = {
     name: save.playerName.trim(),
-    bestScore: Number(run.score) || 0,
-    bestTime: Number(run.seconds) || 0,
-    bestRounds: Number(run.roundsCompleted) || 0,
+    difficulty: save.difficulty || 'medium',
+    rounds: Number(run.rounds) || 0,
+    time: Number(run.time) || 0,
     coinsHeld: Number(save.coins) || 0,
-    lastScene: run.scene || 'night',
-    lastDifficulty: run.difficulty || 'medium',
     lastUpdated: new Date().toISOString()
   };
 
@@ -152,7 +141,7 @@ export async function submitRun(run) {
     });
     lastSync = Date.now();
   } catch (e) {
-    /* ignore */
+    /* fire and forget */
   } finally {
     syncInFlight = false;
   }
@@ -184,7 +173,7 @@ export async function syncWallet() {
 }
 
 /* ------------------------------------------------------------
-   Load single player (uses cache if available)
+   Load single player wallet
    ------------------------------------------------------------ */
 export async function loadPlayerFromCloud(name) {
   if (!name || name.trim().length < 1) return null;
@@ -195,28 +184,17 @@ export async function loadPlayerFromCloud(name) {
       (p.name || '').trim().toLowerCase() === name.trim().toLowerCase()
     );
     if (hit) {
-      return {
-        coinsHeld: hit.coinsHeld,
-        bestScore: hit.bestScore,
-        bestTime: hit.bestTime,
-        bestRounds: hit.bestRounds
-      };
+      return { coinsHeld: hit.coinsHeld };
     }
   }
 
   const data = await jsonpGet(CLOUD_URL, 20000, 1);
   if (!Array.isArray(data)) return null;
-
   const me = data.find(p =>
     (p.name || '').trim().toLowerCase() === name.trim().toLowerCase()
   );
   if (!me) return null;
-  return {
-    coinsHeld: Number(me.coinsHeld) || 0,
-    bestScore: Number(me.bestScore) || 0,
-    bestTime: Number(me.bestTime) || 0,
-    bestRounds: Number(me.bestRounds) || 0
-  };
+  return { coinsHeld: Number(me.coinsHeld) || 0 };
 }
 
 export function startGameWithCloudSync() {
@@ -231,37 +209,4 @@ export function startGameWithCloudSync() {
       persistSave();
     }
   });
-}
-
-export function mergeLeaderboards(localBoard, cloudBoard) {
-  const cloud = cloudBoard || [];
-  if (cloud.length === 0 && (!localBoard || localBoard.length === 0)) return [];
-
-  const merged = new Map();
-
-  for (const e of (localBoard || [])) {
-    merged.set(e.name, { ...e });
-  }
-
-  for (const p of cloud) {
-    const existing = merged.get(p.name);
-    if (!existing || p.bestScore >= (existing.score || 0)) {
-      merged.set(p.name, {
-        name: p.name,
-        score: p.bestScore,
-        seconds: p.bestTime,
-        roundsCompleted: p.bestRounds,
-        coinsHeld: p.coinsHeld,
-        scene: p.lastScene,
-        difficulty: p.lastDifficulty,
-        date: (p.lastUpdated || '').slice(0, 10)
-      });
-    } else if (existing) {
-      existing.coinsHeld = p.coinsHeld;
-    }
-  }
-
-  return Array.from(merged.values())
-    .sort((a, b) => (b.score || 0) - (a.score || 0))
-    .slice(0, 20);
 }

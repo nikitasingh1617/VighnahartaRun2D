@@ -11,25 +11,12 @@ function freezeStats() {
   state.score = Math.round(state.finalRunDistance / 10);
 }
 
-function updateBest(score, seconds, rounds) {
-  /* Update the player's all-time best metrics if beaten */
-  const prev = save.leaderboard.find(e => e.name === save.playerName);
-  const prevBest = prev ? prev.score : 0;
-  if (score > prevBest) {
-    return true;
-  }
-  return false;
-}
-
 function buildRecord() {
   return {
     name: save.playerName || 'Anonymous',
-    score: Math.max(0, Math.round(state.finalRunDistance / 10)),
-    seconds: Math.round(state.finalRunTime),
-    roundsCompleted: state.delivered || 0,
+    rounds: state.delivered || 0,
+    time: Math.round(state.finalRunTime),
     coinsHeld: save.coins,
-    scene: state.scene,
-    difficulty: state.difficulty,
     date: new Date().toLocaleDateString()
   };
 }
@@ -37,19 +24,19 @@ function buildRecord() {
 function submitLocal(record) {
   const idx = save.leaderboard.findIndex(e => e.name === record.name);
   if (idx >= 0) {
-    /* Only replace if this run beats the existing best score */
-    if (record.score >= (save.leaderboard[idx].score || 0)) {
+    const old = save.leaderboard[idx];
+    if (record.rounds > old.rounds ||
+        (record.rounds === old.rounds && record.time < old.time)) {
       save.leaderboard[idx] = record;
-    } else {
-      /* Still update the wallet column, keep old best stats */
-      save.leaderboard[idx].coinsHeld = record.coinsHeld;
-      save.leaderboard[idx].date = record.date;
     }
   } else {
     save.leaderboard.push(record);
   }
-  save.leaderboard.sort((a, b) => b.score - a.score);
-  save.leaderboard = save.leaderboard.slice(0, 20);
+  save.leaderboard.sort((a, b) => {
+    if (b.rounds !== a.rounds) return b.rounds - a.rounds;
+    return a.time - b.time;
+  });
+  save.leaderboard = save.leaderboard.slice(0, 30);
   persistSave();
 }
 
@@ -70,7 +57,6 @@ export function completeGame() {
   }
 
   const record = buildRecord();
-  record.roundsCompleted = 5;
   submitLocal(record);
   submitRun(record);
 
@@ -96,4 +82,4 @@ export function completeGame() {
   import('../core/state.js').then(({ player }) => { player.pooja = true; });
 }
 
-export function scoreDelivery() { /* distance-based only */ }
+export function scoreDelivery() { /* distance-based, not used for ranking */ }
