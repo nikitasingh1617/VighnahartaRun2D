@@ -1,6 +1,16 @@
 import { state } from '../core/state.js';
 import { DIFFICULTIES } from '../data/difficulties.js';
-import { playBell, playDrum } from '../core/audio.js';
+import { playBell, playDrum, playDrumRoll } from '../core/audio.js';
+
+/* ------------------------------------------------------------
+   DRUM TUNING — easy knobs (seconds / volume)
+   ------------------------------------------------------------ */
+const GREEN_BEAT_VOL   = 0.26;  // dhol beat while running        (louder than before — the old one was very faint)
+const GREEN_BEAT_EVERY = 0.55;  // gap between running beats      (unchanged)
+const RESUME_BEAT_VOL  = 0.30;  // beat when the aarti ends
+const ROLL_EVERY_START = 0.32;  // gap between roll hits at the START of the warning (was 0.42)
+const ROLL_EVERY_END   = 0.20;  // ...and at the END, right before the bell         (was 0.10 — far too frantic)
+/* Roll hit VOLUME is in core/audio.js (ROLL_VOL_START / ROLL_VOL_END). */
 
 export const LIGHT_INFO = {
   green: { c:'#3ce86e', rgba:'60,232,110',  label:'DHOL!',     sub:'Green light — RUN!' },
@@ -33,13 +43,13 @@ export function updateLightCycle(dt) {
 
   if (state.lightPhase === 'green') {
     state.beatT -= dt;
-    if (state.beatT <= 0) { playDrum(0.28); state.beatT = 0.55; }
+    if (state.beatT <= 0) { playDrum(GREEN_BEAT_VOL); state.beatT = GREEN_BEAT_EVERY; }
   } else if (state.lightPhase === 'warn') {
     state.beatT -= dt;
     if (state.beatT <= 0) {
-      playDrum(0.42);
       const p = Math.min(1, state.lightT / cfg.warn);
-      state.beatT = 0.42 - 0.32 * p;
+      playDrumRoll(p);   /* swells louder as the bell gets closer */
+      state.beatT = ROLL_EVERY_START - (ROLL_EVERY_START - ROLL_EVERY_END) * p;
     }
   }
 
@@ -47,6 +57,6 @@ export function updateLightCycle(dt) {
     state.lightPhase = 'green';
     state.lightT = 0;
     state.beatT = 0.25;
-    playDrum(0.32);
+    playDrum(RESUME_BEAT_VOL);
   }
 }

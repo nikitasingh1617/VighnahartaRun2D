@@ -1,5 +1,5 @@
 ﻿import { W, H } from '../core/canvas.js';
-import { state } from '../core/state.js';
+import { state, keys } from '../core/state.js';
 import { save, persistSave } from '../core/save.js';
 import { SCENE_ORDER, SCENES } from '../data/scenes.js';
 import { OUTFITS } from '../data/outfits.js';
@@ -40,6 +40,86 @@ function getMuteButton() {
     x: pos.x, y: pos.y,
     w: MUTE_W, h: MUTE_H
   };
+}
+
+/* ------------------------------------------------------------
+   BACK BUTTON + navigation
+   Every screen except the main menu gets a BACK button in the
+   top-left corner. goBack() steps to the PREVIOUS page:
+
+     menu -> intro -> sceneSelect -> diffSelect -> nameEntry -> game
+
+   In-game, Back opens the pause menu (Resume / Restart / Main Menu),
+   and Back from the pause menu returns to the game.
+   ------------------------------------------------------------ */
+const BACK_W = 92;
+const BACK_H = 32;
+
+function getBackPosition() {
+  switch (state.mode) {
+    case 'instructions':
+    case 'intro':
+    case 'sceneSelect':
+    case 'diffSelect':
+    case 'nameEntry':
+    case 'leaderboard':
+    case 'shop':
+    case 'exit':
+      return { x: 16, y: 12 };
+    case 'playing':
+    case 'paused':
+    case 'caught':
+      /* sits just under the HUD panel */
+      return { x: 20, y: 90 };
+    case 'win':
+      return state.winT >= 3.5 ? { x: 16, y: 12 } : null;
+    default:
+      return null;   /* main menu is the root — nothing to go back to */
+  }
+}
+
+export function getBackButton() {
+  const pos = getBackPosition();
+  if (!pos) return null;
+  return { id: 'nav-back', backButton: true, x: pos.x, y: pos.y, w: BACK_W, h: BACK_H };
+}
+
+export function goBack() {
+  switch (state.mode) {
+    case 'instructions':
+    case 'intro':
+      state.instructionsScrollY = 0;
+      state.instructionsScrollTarget = 0;
+      state.mode = 'menu';
+      break;
+    case 'sceneSelect':
+      /* previous page = the "read first" intro; don't make them wait again */
+      state.instructionsScrollY = 0;
+      state.instructionsScrollTarget = 0;
+      state.introT = Math.max(state.introT, 3);
+      state.mode = 'intro';
+      break;
+    case 'diffSelect':
+      state.mode = 'sceneSelect';
+      break;
+    case 'nameEntry':
+      state.mode = 'diffSelect';
+      break;
+    case 'leaderboard':
+    case 'shop':
+    case 'exit':
+    case 'caught':
+    case 'win':
+      state.mode = 'menu';
+      break;
+    case 'playing':
+      state.mode = 'paused';
+      for (const k in keys) keys[k] = false;
+      break;
+    case 'paused':
+      state.mode = 'playing';
+      break;
+  }
 }
 
 /* Purchase confirmation modal geometry */
@@ -180,6 +260,8 @@ export function getCurrentButtons() {
   const list = getBaseButtons();
   const mute = getMuteButton();
   if (mute) list.push(mute);
+  const back = getBackButton();
+  if (back) list.push(back);
   return list;
 }
 
@@ -193,6 +275,8 @@ export function hitTestButton(mx, my) {
 
 export function handleButton(id) {
   playClick();
+
+  if (id === 'nav-back') { goBack(); return; }
 
   if (id === 'mute-toggle') {
     const nowMuted = toggleMute();
@@ -245,7 +329,8 @@ export function handleButton(id) {
   }
   if (id === 'shop') { state.mode = 'shop'; return; }
   if (id === 'exit') { state.mode = 'exit'; try { window.open('', '_self').close(); } catch (e) {} return; }
-  if (id === 'back' || id === 'exit-back' || id === 'scene-back' || id === 'diff-back' || id === 'shop-back') {
+  if (id === 'scene-back' || id === 'diff-back') { goBack(); return; }   // previous page, not the menu
+  if (id === 'back' || id === 'exit-back' || id === 'shop-back') {
     state.mode = 'menu'; return;
   }
   if (id === 'lb-back') { state.mode = 'menu'; return; }

@@ -2,7 +2,7 @@
 import { initAudio } from './audio.js';
 import { save, persistSave } from './save.js';
 import { screenToCanvas } from '../util/drawing.js';
-import { hitTestButton, handleButton } from '../ui/registry.js';
+import { hitTestButton, handleButton, goBack } from '../ui/registry.js';
 import { processCheatKey } from '../cheats.js';
 import { cvs, W } from './canvas.js';
 import {
@@ -146,6 +146,7 @@ export function installInput() {
         state.instructionsScrollTarget = 0;
         state.mode = 'sceneSelect';
       }
+      if (k === 'Escape' || k === 'Backspace') goBack();
       return;
     }
     if (state.mode === 'instructions') {
@@ -157,7 +158,7 @@ export function installInput() {
       return;
     }
     if (state.mode === 'sceneSelect') {
-      if (k === 'Escape' || k === 'Backspace') { state.mode = 'menu'; return; }
+      if (k === 'Escape' || k === 'Backspace') { goBack(); return; }
       if (k === '1' && save.unlockedScenes.night)   { state.scene = 'night'; state.mode = 'diffSelect'; return; }
       if (k === '2' && save.unlockedScenes.day)     { state.scene = 'day';   state.mode = 'diffSelect'; return; }
       if (k === '3' && save.unlockedScenes.evening) { state.scene = 'evening'; state.mode = 'diffSelect'; return; }

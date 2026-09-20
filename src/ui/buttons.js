@@ -3,7 +3,7 @@ import { ui, state } from '../core/state.js';
 import { save } from '../core/save.js';
 import { OUTFITS } from '../data/outfits.js';
 import { rrect } from '../util/drawing.js';
-import { getCurrentButtons, getPurchaseModalRects } from './registry.js';
+import { getCurrentButtons, getPurchaseModalRects, getBackButton } from './registry.js';
 import { drawSceneCard, drawDiffCard, drawOutfitCard } from './cards.js';
 import { isMuted } from '../core/audio.js';
 
@@ -98,6 +98,50 @@ function drawMuteButton(b, hovered) {
   ctx.restore();
 }
 
+function drawBackButton(b, hovered) {
+  const { x, y, w, h } = b;
+  const cy = y + h / 2;
+  const accent = '#ffd24a';
+
+  ctx.save();
+  if (hovered) { ctx.shadowColor = accent; ctx.shadowBlur = 22; }
+  else { ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 12; }
+
+  const g = ctx.createLinearGradient(x, y, x, y + h);
+  g.addColorStop(0, hovered ? 'rgba(78,40,18,0.98)' : 'rgba(38,18,24,0.92)');
+  g.addColorStop(1, hovered ? 'rgba(30,14,4,0.98)'  : 'rgba(16,7,13,0.96)');
+  ctx.fillStyle = g;
+  rrect(x, y, w, h, 10); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  ctx.strokeStyle = hovered ? accent : 'rgba(255,210,74,0.5)';
+  ctx.lineWidth = hovered ? 2.2 : 1.4;
+  rrect(x, y, w, h, 10); ctx.stroke();
+
+  /* chevron */
+  ctx.strokeStyle = hovered ? '#fff8d0' : accent;
+  ctx.lineWidth = 2.4;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x + 24, cy - 7);
+  ctx.lineTo(x + 16, cy);
+  ctx.lineTo(x + 24, cy + 7);
+  ctx.stroke();
+
+  /* label */
+  ctx.fillStyle = hovered ? '#fff8d0' : accent;
+  ctx.font = 'bold 14px Georgia, serif';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText('BACK', x + 36, cy + 1);
+  ctx.restore();
+}
+
+/* Used during live gameplay, where the normal button layer isn't drawn */
+export function drawBackButtonOnly() {
+  const b = getBackButton();
+  if (b) drawBackButton(b, ui.hoveredId === b.id);
+}
+
 /* Purchase confirmation modal — drawn behind the modal buttons */
 function drawPurchaseModal() {
   const key = state.pendingPurchase;
@@ -164,6 +208,8 @@ export function drawButtons() {
   for (const b of getCurrentButtons()) {
     if (b.muteButton) {
       drawMuteButton(b, ui.hoveredId === b.id);
+    } else if (b.backButton) {
+      drawBackButton(b, ui.hoveredId === b.id);
     } else if (b.card && b.sceneKey) {
       drawSceneCard(b, ui.hoveredId === b.id);
     } else if (b.card && b.diffKey) {

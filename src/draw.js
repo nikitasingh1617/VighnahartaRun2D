@@ -24,6 +24,7 @@ import { drawHUD } from './screens/hud.js';
 import { drawPauseOverlay } from './screens/pause.js';
 import { drawOverlay, drawCheatToast } from './screens/overlays.js';
 import { drawTouchControls } from './ui/touchControls.js';
+import { drawBackButtonOnly } from './ui/buttons.js';
 
 export function draw() {
   const sx = cvs.width  / W;
@@ -90,6 +91,7 @@ export function draw() {
   ctx.restore();
 
   drawHUD();
+  if (state.mode === 'playing') drawBackButtonOnly();
   drawOverlay();
   if (state.mode === 'paused') drawPauseOverlay();
   drawCheatToast();
