@@ -17,17 +17,27 @@ export const PAUSE_BUTTON = {
   label: '⏸', oneShot: true, action: 'pause'
 };
 
+/* Extra invisible tap margin around every round button. Fingers are wider
+   than the drawn circle, so a real touch often lands just outside it — this
+   is what used to read as "slow" (it wasn't slow, it just missed and needed
+   a second tap). The drawn circle stays the same size; only the hit-area
+   grows, so the art doesn't get any bigger. */
+const TOUCH_SLOP = 22;
+
 export function hitTestTouchButton(x, y) {
   if (state.mode !== 'playing') return null;
 
   const dp = Math.hypot(x - PAUSE_BUTTON.cx, y - PAUSE_BUTTON.cy);
-  if (dp <= PAUSE_BUTTON.r + 8) return PAUSE_BUTTON;
+  if (dp <= PAUSE_BUTTON.r + TOUCH_SLOP) return PAUSE_BUTTON;
 
+  /* Closest button wins, not just the first in range — matters once the
+     bigger hit-areas start to overlap between neighbouring buttons. */
+  let best = null, bestD = Infinity;
   for (const btn of TOUCH_BUTTONS) {
     const d = Math.hypot(x - btn.cx, y - btn.cy);
-    if (d <= btn.r + 6) return btn;
+    if (d <= btn.r + TOUCH_SLOP && d < bestD) { best = btn; bestD = d; }
   }
-  return null;
+  return best;
 }
 
 export function pressTouchButton(btn, pointerId) {

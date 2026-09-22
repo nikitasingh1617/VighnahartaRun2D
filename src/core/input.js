@@ -206,14 +206,29 @@ export function installInput() {
 
   /* ---- Pointer ---- */
   cvs.addEventListener('pointerdown', e => {
+    const p = screenToCanvas(e.clientX, e.clientY);
+
+    /* Gameplay touch buttons are handled FIRST and synchronously, before
+       audio/fullscreen setup, so the very first frame after a tap already
+       shows the button pressed and the input already applied. Those two
+       side-effects still happen, just after the input is locked in. */
+    if (state.mode === 'playing' && ui.hasTouch) {
+      const touchBtn = hitTestTouchButton(p.x, p.y);
+      if (touchBtn) {
+        e.preventDefault();
+        try { cvs.setPointerCapture(e.pointerId); } catch (err) {}
+        pressTouchButton(touchBtn, e.pointerId);
+        initAudio();
+        return;
+      }
+    }
+
     initAudio();
 
     if (ui.hasTouch && !fullscreenOK) {
       requestFullscreen();
       state.fullscreenToast = 2.5;
     }
-
-    const p = screenToCanvas(e.clientX, e.clientY);
 
     /* UI buttons first (mute, back, etc.) */
     const btn = hitTestButton(p.x, p.y);
@@ -233,18 +248,8 @@ export function installInput() {
 
     /* Gameplay */
     if (state.mode === 'playing') {
-      /* On touch, ONLY the E button triggers interact */
-      if (ui.hasTouch) {
-        const touchBtn = hitTestTouchButton(p.x, p.y);
-        if (touchBtn) {
-          e.preventDefault();
-          try { cvs.setPointerCapture(e.pointerId); } catch (err) {}
-          pressTouchButton(touchBtn, e.pointerId);
-        }
-        return;
-      }
-      /* On desktop, any click acts as interact */
-      player.interactRequested = true;
+      /* On desktop, any click acts as interact. (Touch already handled above.) */
+      if (!ui.hasTouch) player.interactRequested = true;
     }
   });
 
