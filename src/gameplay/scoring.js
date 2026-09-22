@@ -72,9 +72,16 @@ function submitLocal(record) {
   persistSave();
 }
 
+/* Cheat codes (e.g. "bappa") skip rounds or force-complete the run, so a run
+   they touched is never a real playthrough — it must not reach the
+   leaderboard, locally or on the shared sheet. Lifetime stats on the User
+   page still update, since those are personal and not competitive. */
+function cheatedThisRun() { return !!state.runCheated; }
+
 export function recordRunCaught() {
   freezeStats();
   recordRunStats(false);
+  if (cheatedThisRun()) return;
   if (state.delivered < 1) return;
   const record = buildRecord();
   submitLocal(record);
@@ -85,14 +92,16 @@ export function completeGame() {
   freezeStats();
   recordRunStats(true);
 
-  if (state.score > (save.bestScores[state.scene] || 0)) {
+  if (!cheatedThisRun() && state.score > (save.bestScores[state.scene] || 0)) {
     save.bestScores[state.scene] = state.score;
     state.newBest = true;
   }
 
-  const record = buildRecord();
-  submitLocal(record);
-  submitRun(record);
+  if (!cheatedThisRun()) {
+    const record = buildRecord();
+    submitLocal(record);
+    submitRun(record);
+  }
 
   const idx = SCENE_ORDER.indexOf(state.scene);
   if (idx >= 0 && idx < SCENE_ORDER.length - 1) {

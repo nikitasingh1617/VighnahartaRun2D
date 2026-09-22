@@ -27,6 +27,7 @@ export function showCheatToast(msg) {
 
 function skipToFinal() {
   initAudio();
+  state.runCheated = true;    // this run must never reach the leaderboard
   state.round = 5; state.delivered = 4;
   state.mode = 'playing'; state.fade = 0.6; state.flash = 1;
   state.celebration = null;
@@ -43,6 +44,7 @@ function skipToFinal() {
 
 function triggerPooja() {
   initAudio();
+  state.runCheated = true;    // this run must never reach the leaderboard
   state.delivered = 5; state.round = 5;
   setupWorldForRound(5); buildObstacles(5); initAmbient();
   player.x = world.placeX - 10; player.y = GROUND_Y; player.vy = 0;

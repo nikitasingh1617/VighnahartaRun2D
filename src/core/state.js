@@ -18,6 +18,7 @@ export const state = {
   completionBonus: 0, coinsEarned: 0,
   runDistance: 0,
   runStartTime: 0,
+  runCheated: false,        // set by cheats.js — blocks this run from the leaderboard
   runCoins: 0,
   finalRunTime: 0,
   finalRunDistance: 0,

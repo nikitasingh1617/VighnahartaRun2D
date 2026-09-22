@@ -40,6 +40,7 @@ export function startRound(n) {
     state.finalRunTime = 0;
     state.finalRunDistance = 0;
     state.finalRunCoins = 0;
+    state.runCheated = false;   // fresh run — clean slate for the leaderboard
     player.pooja = false;
   }
   state.round = n;
